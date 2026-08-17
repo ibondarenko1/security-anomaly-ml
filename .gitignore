@@ -1,0 +1,36 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Datasets are acquired separately
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Generated ML artifacts
+models/**/*.joblib
+models/*.joblib
+models/**/*.parquet
+models/*.parquet
+models/**/*.pkl
+models/*.pkl
+models/**/*.pickle
+models/*.pickle
+!models/.gitkeep
+
+# Temporary output
+*.log
+*.tmp
+*.bak
