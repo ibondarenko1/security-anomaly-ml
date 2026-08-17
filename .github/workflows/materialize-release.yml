@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/security-anomaly-release/tree
-          curl -fL --retry 3 'https://netorg20102843-my.sharepoint.com/:u:/g/personal/ievgen_summitrangeconsulting_com/IQDpIn5Mh3WfSbtNxlWZAnrSAWe8i7UqAll39iL3ULY20Cg?download=1' -o /tmp/security-anomaly-release/release.tar.gz
+          curl -fL --retry 3 'https://sdmntprwestus3.oaiusercontent.com/files/00000000-fc14-81fd-a23d-7fe32a28cc41/raw?se=2026-08-17T20%3A50%3A12Z&sp=r&sv=2026-02-06&sr=b&scid=258c34cc-f639-526b-ab47-092916ddf8f1&skoid=fadb8e47-d3c7-4c79-a9c3-970d9af3b213&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-08-17T20%3A29%3A36Z&ske=2026-08-18T20%3A29%3A36Z&sks=b&skv=2026-02-06&sig=a3ZiJsXiv0Q%2BhCgJVCEL%2B7cS1fYOT0DyvVRDbLnr0TU%3D' -o /tmp/security-anomaly-release/release.tar.gz
           tar -xzf /tmp/security-anomaly-release/release.tar.gz -C /tmp/security-anomaly-release/tree
           find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
           cp -a /tmp/security-anomaly-release/tree/. .
