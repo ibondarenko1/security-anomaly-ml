@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="500" viewBox="0 0 1600 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#020611"/>
+      <stop offset="0.55" stop-color="#071426"/>
+      <stop offset="1" stop-color="#050816"/>
+    </linearGradient>
+    <linearGradient id="neon" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.55" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="500" fill="url(#bg)"/>
+  <circle cx="245" cy="250" r="210" fill="url(#glow)" opacity="0.28"/>
+
+  <!-- Shield mark -->
+  <g transform="translate(105 72)" filter="url(#softGlow)">
+    <path d="M145 0 L280 48 V160 C280 254 225 326 145 365 C65 326 10 254 10 160 V48 Z" fill="#061a30" stroke="url(#neon)" stroke-width="8"/>
+    <path d="M145 28 L252 66 V159 C252 231 210 291 145 326 C80 291 38 231 38 159 V66 Z" fill="none" stroke="#1d4ed8" stroke-width="3" opacity="0.8"/>
+    <!-- network brain -->
+    <g fill="none" stroke="#22d3ee" stroke-width="6" stroke-linecap="round">
+      <path d="M91 110 C62 110 57 151 78 165 C58 184 71 222 100 218 C106 248 145 248 145 218 V104 C145 81 112 82 104 102"/>
+      <circle cx="90" cy="130" r="7" fill="#22d3ee"/>
+      <circle cx="111" cy="162" r="7" fill="#22d3ee"/>
+      <circle cx="92" cy="195" r="7" fill="#22d3ee"/>
+      <path d="M90 130 L111 162 L92 195"/>
+    </g>
+    <!-- anomaly pulse -->
+    <path d="M142 205 H172 L187 177 L203 238 L222 191 L238 205 H260" fill="none" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Main title -->
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <text x="475" y="190" fill="#f8fafc" font-size="74" font-weight="800" letter-spacing="2">SECURITY</text>
+    <text x="475" y="278" fill="url(#neon)" font-size="78" font-weight="900" letter-spacing="1">ANOMALY ML</text>
+    <text x="480" y="332" fill="#cbd5e1" font-size="24" font-weight="500" letter-spacing="12">DETECT • ANALYZE • PROTECT</text>
+  </g>
+
+  <!-- Data field / anomaly wave -->
+  <g transform="translate(1120 90)" opacity="0.95">
+    <g fill="none" stroke="#0ea5e9" stroke-width="2" opacity="0.55">
+      <path d="M0 270 C80 170 145 315 220 215 S350 140 450 235"/>
+      <path d="M0 292 C85 205 150 335 230 240 S360 170 455 258" opacity="0.55"/>
+      <path d="M0 314 C90 235 160 355 240 268 S370 205 460 285" opacity="0.35"/>
+    </g>
+    <g fill="#22d3ee">
+      <circle cx="38" cy="248" r="4"/><circle cx="78" cy="220" r="3"/><circle cx="118" cy="228" r="4"/>
+      <circle cx="165" cy="272" r="3"/><circle cx="213" cy="230" r="4"/><circle cx="258" cy="196" r="3"/>
+      <circle cx="308" cy="191" r="4"/><circle cx="360" cy="216" r="3"/><circle cx="410" cy="239" r="4"/>
+    </g>
+    <g fill="#fb7185" filter="url(#softGlow)">
+      <circle cx="214" cy="229" r="8"/><circle cx="309" cy="190" r="9"/><circle cx="384" cy="224" r="7"/>
+    </g>
+    <g stroke="#fb7185" stroke-width="2" stroke-dasharray="5 5" opacity="0.8">
+      <line x1="214" y1="229" x2="214" y2="110"/>
+      <line x1="309" y1="190" x2="309" y2="65"/>
+      <line x1="384" y1="224" x2="384" y2="125"/>
+    </g>
+    <g font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" font-weight="700">
+      <rect x="187" y="78" width="54" height="38" rx="8" fill="#2a0c16" stroke="#fb7185"/>
+      <text x="214" y="104" fill="#fb7185" text-anchor="middle">!</text>
+      <rect x="282" y="32" width="54" height="38" rx="8" fill="#2a0c16" stroke="#fb7185"/>
+      <text x="309" y="58" fill="#fb7185" text-anchor="middle">!</text>
+      <rect x="357" y="92" width="54" height="38" rx="8" fill="#2a0c16" stroke="#fb7185"/>
+      <text x="384" y="118" fill="#fb7185" text-anchor="middle">!</text>
+    </g>
+  </g>
+
+  <!-- Footer chips -->
+  <g font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="700">
+    <g transform="translate(475 382)"><rect width="190" height="54" rx="14" fill="#071827" stroke="#22d3ee"/><text x="95" y="34" fill="#dbeafe" text-anchor="middle">PYTHON / ML</text></g>
+    <g transform="translate(680 382)"><rect width="230" height="54" rx="14" fill="#071827" stroke="#22d3ee"/><text x="115" y="34" fill="#dbeafe" text-anchor="middle">ANOMALY DETECTION</text></g>
+    <g transform="translate(925 382)"><rect width="190" height="54" rx="14" fill="#071827" stroke="#3b82f6"/><text x="95" y="34" fill="#dbeafe" text-anchor="middle">TIME SERIES</text></g>
+  </g>
+</svg>
