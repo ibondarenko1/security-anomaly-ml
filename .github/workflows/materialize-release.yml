@@ -24,7 +24,6 @@ jobs:
           cat .release/release.b64 .release/part-* > /tmp/security-anomaly-release/release.b64
           base64 -d /tmp/security-anomaly-release/release.b64 > /tmp/security-anomaly-release/release.tar.gz
           tar -xzf /tmp/security-anomaly-release/release.tar.gz -C /tmp/security-anomaly-release/tree
-
           find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .release ! -name .github -exec rm -rf {} +
           cp -a /tmp/security-anomaly-release/tree/. .
           rm -rf .release
