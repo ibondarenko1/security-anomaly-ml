@@ -5,8 +5,9 @@ on:
     branches:
       - agent/open-source-release
     paths:
-      - .release/release.b64
+      - .release/part-*
       - .github/workflows/materialize-release.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,23 +19,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: agent/open-source-release
           fetch-depth: 0
 
       - name: Expand audited release bundle
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/security-anomaly-release
-          base64 -d .release/release.b64 > /tmp/security-anomaly-release/release.tar.gz
           mkdir -p /tmp/security-anomaly-release/tree
+          cat .release/part-* > /tmp/security-anomaly-release/release.b64
+          base64 -d /tmp/security-anomaly-release/release.b64 > /tmp/security-anomaly-release/release.tar.gz
           tar -xzf /tmp/security-anomaly-release/release.tar.gz -C /tmp/security-anomaly-release/tree
 
-          find . -mindepth 1 -maxdepth 1 \
-            ! -name .git \
-            ! -name .release \
-            ! -name .github \
-            -exec rm -rf {} +
-
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .release ! -name .github -exec rm -rf {} +
           cp -a /tmp/security-anomaly-release/tree/. .
           rm -rf .release
           rm -f .github/workflows/materialize-release.yml
