@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="assets/security-anomaly-ml-logo.webp" alt="Security Anomaly ML" width="900">
-</p>
+![Security Anomaly ML](./assets/security-anomaly-ml-logo.webp)
 
 # Security Anomaly ML
 
