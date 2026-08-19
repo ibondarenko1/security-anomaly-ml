@@ -1,6 +1,6 @@
 ![Security Anomaly ML](./assets/security-anomaly-ml-banner.svg)
 
-.# Security Anomaly ML
+# Security Anomaly ML
 
 An open-source machine-learning system for network anomaly detection that turns high-volume flow detections into analyst-facing security incidents.
 
