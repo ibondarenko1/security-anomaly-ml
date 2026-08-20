@@ -77,7 +77,7 @@ docker run --rm \
 
 On the 12-row synthetic fixture, one local verification produced:
 
-- image size: `266,805,686` bytes (about 254.4 MiB);
+- image size: `266,805,442` bytes (about 254.4 MiB);
 - Python CLI wall time: about `4.84s` on a cold run;
 - Docker CLI wall time: about `4.21s` on a cold run;
 - Docker internal analysis time: about `1.63s`;

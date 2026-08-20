@@ -36,13 +36,15 @@ RUN python -m pip install --no-index --find-links=/tmp/wheels security-anomaly-m
 
 # The named build context must be supplied explicitly:
 #   --build-context model=/path/to/verified-model-directory
-COPY --from=model /context-rf-v2.joblib /opt/security-anomaly/models/context-rf-v2.joblib
+COPY --chown=10001:10001 --chmod=0440 --from=model \
+    /context-rf-v2.joblib /opt/security-anomaly/models/context-rf-v2.joblib
+
+USER 10001:10001
 
 RUN printf '%s  %s\n' "${MODEL_SHA256}" "${SECURITY_ANOMALY_MODEL}" | sha256sum -c - \
     && security-anomaly version \
     && security-anomaly model-info
 
-USER 10001:10001
 WORKDIR /data
 
 ENTRYPOINT ["security-anomaly"]
