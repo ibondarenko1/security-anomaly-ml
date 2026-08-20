@@ -53,8 +53,11 @@ jobs:
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/docker-data:/data" \
             "$IMAGE" analyze /data/flows.csv --output /data/incidents.jsonl
-          cmp "$RUNNER_TEMP/docker-data/incidents.jsonl" \
-            tests/fixtures/product-v01/expected-incidents.jsonl
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/docker-data:/data" \
+            --volume "$GITHUB_WORKSPACE/tests/fixtures/product-v01/expected-incidents.jsonl:/expected-incidents.jsonl:ro" \
+            --entrypoint python "$IMAGE" -c \
+            "from pathlib import Path; actual = Path('/data/incidents.jsonl').read_bytes(); expected = Path('/expected-incidents.jsonl').read_bytes(); assert actual == expected, 'Docker JSONL differs from golden'"
 
       - name: Publish immutable v0.1.0 tag
         env:
