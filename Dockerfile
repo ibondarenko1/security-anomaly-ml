@@ -21,7 +21,7 @@ ARG MODEL_SHA256=4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c7
 ARG SOURCE_REVISION=unknown
 
 LABEL org.opencontainers.image.title="Security Anomaly ML" \
-    org.opencontainers.image.description="Research-grade batch network-flow anomaly detection" \
+    org.opencontainers.image.description="Security Anomaly ML v0.1 — containerized CICFlowMeter network-flow anomaly detection." \
     org.opencontainers.image.source="https://github.com/ibondarenko1/security-anomaly-ml" \
     org.opencontainers.image.version="0.1.0" \
     org.opencontainers.image.revision="${SOURCE_REVISION}" \
