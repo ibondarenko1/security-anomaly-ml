@@ -112,6 +112,32 @@ def test_serializer_matches_batch_promoted_incidents() -> None:
     assert promoted_incidents_to_v1(result) == (public_value(),)
 
 
+def test_public_scores_are_canonical_across_sub_tolerance_numeric_noise() -> None:
+    first = incident_to_v1(
+        replace(
+            incident(),
+            max_attack_score=0.4325909090909091,
+            mean_attack_score=0.4183686868686869,
+        ),
+        product_version="0.1.0",
+        model_version="context-rf-v2",
+        feature_contract="cicflow-v2-128",
+    )
+    second = incident_to_v1(
+        replace(
+            incident(),
+            max_attack_score=0.432590909090909,
+            mean_attack_score=0.418368686868687,
+        ),
+        product_version="0.1.0",
+        model_version="context-rf-v2",
+        feature_contract="cicflow-v2-128",
+    )
+
+    assert first["max_attack_score"] == second["max_attack_score"] == 0.432590909091
+    assert first["mean_attack_score"] == second["mean_attack_score"] == 0.418368686869
+
+
 def test_non_promoted_and_non_finite_values_fail_closed() -> None:
     with pytest.raises(IncidentSerializationError, match="promoted-only"):
         incident_to_v1(

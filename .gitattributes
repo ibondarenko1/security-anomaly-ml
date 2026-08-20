@@ -1,0 +1,9 @@
+# Frozen release JSON hashes were published from CRLF byte representations.
+# Force identical checkout bytes on Linux/macOS/Windows for runtime parity.
+/contracts/*.json text eol=crlf
+/src/security_anomaly/resources/*.json text eol=crlf
+
+# Public fixture generators and serializers explicitly emit LF bytes.
+/tests/fixtures/product-v01/*.csv text eol=lf
+/tests/fixtures/product-v01/*.json text eol=lf
+/tests/fixtures/product-v01/*.jsonl text eol=lf

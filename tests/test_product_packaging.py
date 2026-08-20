@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import tomllib
 import ast
+import hashlib
+import json
+import tomllib
 from pathlib import Path
 
 from src.security_anomaly.package_resources import (
@@ -37,6 +39,27 @@ def test_all_installed_runtime_resources_resolve() -> None:
         resource = resource_ref(name)
         assert resource.is_file()
         assert resource.read_bytes()
+
+
+def test_checkout_feature_contract_bytes_match_frozen_manifest() -> None:
+    manifest = json.loads(
+        (ROOT / "contracts" / "model-manifest-context-rf-v2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    expected = manifest["compatibility"]["feature_contract_sha256"]
+    repository_bytes = (
+        ROOT / "contracts" / "feature-contract-cicflow-v2-128.json"
+    ).read_bytes()
+    package_bytes = (
+        ROOT
+        / "src"
+        / "security_anomaly"
+        / "resources"
+        / "feature-contract-cicflow-v2-128.json"
+    ).read_bytes()
+    assert hashlib.sha256(repository_bytes).hexdigest() == expected
+    assert hashlib.sha256(package_bytes).hexdigest() == expected
 
 
 def test_runtime_package_has_no_research_training_or_holdout_imports() -> None:
