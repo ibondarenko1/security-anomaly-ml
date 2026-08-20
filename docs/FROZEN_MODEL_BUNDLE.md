@@ -102,16 +102,77 @@ Input contract violations fail explicitly: missing required columns, invalid
 timestamps, non-finite numeric values, invalid ports, unsupported protocols, or
 feature-order mismatches are not silently repaired.
 
-## Frozen score parity
+## Parity gates
 
-The parity utility compares the packaged loader against the stored Feb 17
-validation scores. It reads labels only to confirm reference row alignment; the
-inference path itself remains label-free. It does not read the locked Feb 18
-holdout and never retrains a model.
+Two separate checks cover different failure modes. Neither check reads the
+locked Feb 18 holdout or fits, retrains, or retunes a model.
+
+### Model-bundle serialization parity
+
+`verify_frozen_score_parity.py` starts from the already-generated frozen Feb 17
+research matrix. It proves that checksum/contract validation, joblib loading,
+and scoring preserve the stored scores:
+
+```text
+frozen validation_features.parquet -> FrozenModelBundle -> scores
+```
 
 ```powershell
 .\.venv\Scripts\python.exe tools\verify_frozen_score_parity.py
 ```
 
-Release gating requires all reference rows to agree within `1e-12` and zero
-decision disagreements at the frozen `0.10` threshold.
+All 498,890 rows agree: the maximum absolute score difference is
+`2.22e-16`, no difference exceeds `1e-12`, and there are zero decision
+disagreements at threshold `0.10`.
+
+### Full product-pipeline parity
+
+`verify_product_pipeline_parity.py` starts from an isolated raw Feb 17
+CICFlowMeter CSV. It refuses a file containing any other date, removes all
+ground-truth/evaluation fields before the product builder is called, and runs:
+
+```text
+raw unlabeled Feb 17 flows
+-> CausalTemporalFeatureBuilder
+-> ordered cicflow-v2-128 matrix
+-> FrozenModelBundle
+-> scores
+```
+
+The verification dataset is not distributed in Git. Supply the existing
+Feb-17-only raw CSV; do not pass the combined multi-day corpus:
+
+```powershell
+.\.venv\Scripts\python.exe tools\verify_product_pipeline_parity.py `
+  --raw-feb17 data\processed\cic_unsw_nb15_v2\_product_parity_cache\feb17_raw.csv
+```
+
+Row order inside a timestamp is not assumed. The tool assigns every isolated
+raw row a stable source-row identifier, independently regenerates the frozen
+research path, fingerprints all 128 ordered values with SHA-256, verifies all
+128 joined values directly, and maps to the physical frozen Parquet row.
+Identical complete-feature duplicates receive deterministic occurrence ranks;
+because every one of their 128 inputs is identical, their ordering is feature-
+and score-equivalent.
+
+The full-scale Feb 17 result is exact at the contract's float32 model-matrix
+boundary:
+
+| Check | Result |
+|---|---:|
+| Raw product rows | 498,890 |
+| Ground-truth fields passed to builder | 0 |
+| Features per row | 128 |
+| Mismatched rows | 0 |
+| Mismatched cells | 0 |
+| Maximum absolute feature difference | 0.0 |
+| Temporal features matching | 43 / 43 |
+| Feature order matches `cicflow-v2-128` | Yes |
+| Rows scored | 498,890 |
+| Maximum absolute score difference | `2.22e-16` |
+| Score differences above `1e-12` | 0 |
+| Threshold `0.10` disagreements | 0 |
+
+The feature check uses zero absolute and relative tolerance after conversion to
+the explicitly frozen float32 model-input dtype. Per-feature mismatch counts
+and maximum differences are included in the tool's JSON report.
