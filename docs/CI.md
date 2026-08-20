@@ -51,4 +51,8 @@ CI never updates goldens. A failure requires investigation; golden changes must 
 
 Research reproduction tests that require non-redistributed datasets may remain skipped, but all product jobs are runnable from public inputs alone.
 
+## Release image publication
+
+The manual `Publish release image` workflow is restricted to `main` and has the repository's only `packages: write` permission. It downloads and verifies the public frozen model, builds the image with the exact workflow commit in the OCI revision label, runs the complete offline non-root synthetic golden regression, and only then pushes the immutable `0.1.0` tag to GHCR. It does not publish `latest`.
+
 This CI demonstrates reproducibility and contract stability; it does not establish production readiness or production performance.
