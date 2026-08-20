@@ -85,6 +85,21 @@ docker run --rm \
   analyze /data/flows.csv --output /data/incidents.jsonl
 ```
 
+Windows PowerShell:
+
+```powershell
+docker run --rm --network none `
+  --mount "type=bind,source=$($PWD.Path),target=/data" `
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 `
+  validate /data/flows.csv
+
+docker run --rm --network none `
+  --mount "type=bind,source=$($PWD.Path),target=/data" `
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 `
+  analyze /data/flows.csv `
+  --output /data/incidents.jsonl
+```
+
 `--network none` is supported for `version`, `model-info`, `validate`, and `analyze`. Normal inference is offline. The container runs as UID/GID `10001`, so the mounted output directory must be writable by that identity.
 
 ## Local smoke snapshot

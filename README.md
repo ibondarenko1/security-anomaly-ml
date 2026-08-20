@@ -2,14 +2,16 @@
 
 # Security Anomaly ML
 
-Security Anomaly ML is an open-source batch network-flow anomaly detection system that converts unlabeled CICFlowMeter-compatible flows into promoted, analyst-facing security incidents.
+Open-source ML network-flow detector that turns CICFlowMeter-compatible traffic into deterministic analyst-facing security incidents.
 
 [![CI](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml)
+[![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0)
 [![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](./LICENSE)
-[![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0)
 
-**v0.1.0 is a usable research/evaluation release. It is not production-ready.** The frozen detector performed well on one future capture day from the same network family, but the remaining alert volume is too high for a normal Tier-1 production queue.
+**v0.1.0 — usable research/evaluation release. Not production-ready.**
+
+Security Anomaly ML takes unlabeled CICFlowMeter flow records, builds causal temporal context, scores them with a frozen Random Forest detector, groups repeated alerts into incidents, and emits deterministic `incident-v1` JSONL.
 
 ## Quick start
 
@@ -21,33 +23,66 @@ docker pull ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
 docker run --rm --network none \
   -v "$PWD:/data" \
   ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 \
-  validate /data/flows.csv
-
-docker run --rm --network none \
-  -v "$PWD:/data" \
-  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 \
   analyze /data/flows.csv \
   --output /data/incidents.jsonl
 ```
 
-Windows PowerShell:
+The mounted directory must be writable by the container's non-root UID/GID `10001`. Normal inference works with networking disabled. Validation, Windows PowerShell, and source-build examples are in [`docs/DOCKER.md`](docs/DOCKER.md).
 
-```powershell
-docker pull ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
+## Example incident
 
-docker run --rm --network none `
-  --mount "type=bind,source=$($PWD.Path),target=/data" `
-  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 `
-  validate /data/flows.csv
+The output is newline-delimited `incident-v1` JSON. Each object contains a deterministic incident ID, first/last timestamps, endpoints, destination port, protocols, flow count, aggregate attack scores, and frozen version metadata.
 
-docker run --rm --network none `
-  --mount "type=bind,source=$($PWD.Path),target=/data" `
-  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 `
-  analyze /data/flows.csv `
-  --output /data/incidents.jsonl
+```json
+{
+  "schema_version": "incident-v1",
+  "incident_id": "inc_e05487e368f9e26a2a6939c7be622de508056478d3876c344c77a53ba4214872",
+  "first_seen": "2026-08-20T13:00:00",
+  "last_seen": "2026-08-20T13:00:05",
+  "src_ip": "192.0.2.10",
+  "dst_ip": "198.51.100.20",
+  "dst_port": 445,
+  "protocols": [6, 17],
+  "flow_count": 3,
+  "max_attack_score": 0.432590909091,
+  "mean_attack_score": 0.418368686869,
+  "promoted": true,
+  "product_version": "0.1.0",
+  "model_version": "context-rf-v2",
+  "feature_contract": "cicflow-v2-128"
+}
 ```
 
-The mounted directory must be writable by the container's non-root UID/GID `10001`. Normal inference works with networking disabled.
+The public interface emits promoted incidents rather than individual ML predictions, reducing repeated flow alerts into deterministic analyst-facing objects.
+
+The synthetic regression fixture at [`tests/fixtures/product-v01/flows.csv`](tests/fixtures/product-v01/flows.csv) deterministically produces:
+
+- 12 processed flows;
+- 9 flow alerts;
+- 5 aggregated incidents;
+- 2 promoted incidents.
+
+These numbers test runtime stability; they are **not an accuracy benchmark** and contain no copied research-dataset rows.
+
+## Locked temporal validation
+
+The v0.1 pipeline was frozen before evaluation on the February 18 temporal holdout. No thresholds, features, model parameters, aggregation rules, promotion rules, suppression, or whitelisting were changed after opening it.
+
+| Metric | Locked holdout |
+|---|---:|
+| Flow recall | 98.3686% |
+| Flow precision | 67.5499% |
+| Flow FPR | 2.1190% |
+| PR-AUC | 0.898915 |
+| Aggregated incident recall | 99.9917% |
+| Promoted incident recall | 99.9339% |
+| Promoted incident precision | 93.46% |
+| Flow-alert to incident reduction | 83.80% |
+| FP-object reduction | 96.74% |
+
+**Verdict: acceptable but operationally noisy.** This is one future capture day with overlapping hosts/environment from the same dataset and network family. It is not evidence of generalization across arbitrary networks, and the remaining workload is too high for normal Tier-1 production use.
+
+The holdout was evaluated once after all model, feature, threshold, aggregation, and promotion decisions were frozen.
 
 ## How it works
 
@@ -74,57 +109,6 @@ The frozen feature contract is:
 ```
 
 Raw IP addresses and timestamps provide temporal and incident context but are not model identity features. Same-timestamp flows are processed as one peer group: all peers are featurized before that timestamp updates state.
-
-## Output
-
-The output is newline-delimited `incident-v1` JSON. Each object contains a deterministic incident ID, first/last timestamps, endpoints, destination port, protocols, flow count, aggregate attack scores, and frozen version metadata.
-
-```json
-{
-  "schema_version": "incident-v1",
-  "incident_id": "inc_<64-hex-digest>",
-  "first_seen": "2026-08-20T13:00:00",
-  "last_seen": "2026-08-20T13:00:05",
-  "src_ip": "192.0.2.10",
-  "dst_ip": "198.51.100.20",
-  "dst_port": 445,
-  "protocols": [6, 17],
-  "flow_count": 3,
-  "max_attack_score": 0.432590909091,
-  "mean_attack_score": 0.418368686869,
-  "promoted": true,
-  "product_version": "0.1.0",
-  "model_version": "context-rf-v2",
-  "feature_contract": "cicflow-v2-128"
-}
-```
-
-The synthetic regression fixture at [`tests/fixtures/product-v01/flows.csv`](tests/fixtures/product-v01/flows.csv) deterministically produces:
-
-- 12 processed flows;
-- 9 flow alerts;
-- 5 aggregated incidents;
-- 2 promoted incidents.
-
-These numbers test runtime stability; they are **not an accuracy benchmark** and contain no copied research-dataset rows.
-
-## Frozen validation results
-
-The v0.1 pipeline was frozen before evaluation on the February 18 temporal holdout. No thresholds, features, model parameters, aggregation rules, promotion rules, suppression, or whitelisting were changed after opening it.
-
-| Metric | Locked holdout |
-|---|---:|
-| Flow recall | 98.3686% |
-| Flow precision | 67.5499% |
-| Flow FPR | 2.1190% |
-| PR-AUC | 0.898915 |
-| Aggregated incident recall | 99.9917% |
-| Promoted incident recall | 99.9339% |
-| Promoted incident precision | 93.46% |
-| Flow-alert to incident reduction | 83.80% |
-| FP-object reduction | 96.74% |
-
-**Verdict: acceptable but operationally noisy.** This is one future capture day with overlapping hosts/environment from the same dataset and network family. It is not evidence of generalization across arbitrary networks, and the remaining workload is too high for normal Tier-1 production use.
 
 ## Input format
 
@@ -245,6 +229,25 @@ The production-facing v0.1 pipeline was selected using chronological capture day
 Temporal context resets at split and batch boundaries. February 18 was not used for training, feature selection, threshold selection, aggregation selection, or promotion selection. Research scripts remain available for audit, but datasets and generated evaluation artifacts are not redistributed.
 
 The research uses UNSW-NB15 and CIC-UNSW-NB15 under their publishers' terms. Third-party dataset terms are not covered by this repository's Apache-2.0 license.
+
+## Repository layout
+
+```text
+security-anomaly-ml/
+├── src/security_anomaly/      # label-free product runtime
+├── src/*.py                   # research and reproduction tooling
+├── contracts/                 # versioned feature/model/incident contracts
+├── tests/
+│   └── fixtures/product-v01/  # deterministic public regression fixture
+├── docs/                      # CLI, Docker, CI, privacy, and design docs
+├── tools/                     # artifact and parity verification helpers
+├── data/                      # ignored external datasets and derived data
+├── models/                    # ignored external model/evaluation artifacts
+├── Dockerfile
+├── pyproject.toml
+├── requirements-runtime.txt
+└── README.md
+```
 
 ## Development and tests
 
