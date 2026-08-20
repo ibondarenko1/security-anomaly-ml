@@ -9,11 +9,16 @@ __all__ = [
     "ArtifactIntegrityError",
     "CausalTemporalFeatureBuilder",
     "ContractError",
+    "BatchAnalysisResult",
+    "FlowDetection",
+    "FrozenOperationalPolicy",
     "FeatureBatch",
     "FeatureContract",
     "FrozenModelBundle",
+    "IncidentDetection",
     "InputContractError",
     "ModelCompatibilityError",
+    "SecurityAnomalyDetector",
 ]
 
 _EXPORTS = {
@@ -25,6 +30,11 @@ _EXPORTS = {
     "CausalTemporalFeatureBuilder": (".temporal", "CausalTemporalFeatureBuilder"),
     "FeatureBatch": (".temporal", "FeatureBatch"),
     "InputContractError": (".temporal", "InputContractError"),
+    "FlowDetection": (".results", "FlowDetection"),
+    "IncidentDetection": (".results", "IncidentDetection"),
+    "BatchAnalysisResult": (".results", "BatchAnalysisResult"),
+    "FrozenOperationalPolicy": (".detector", "FrozenOperationalPolicy"),
+    "SecurityAnomalyDetector": (".detector", "SecurityAnomalyDetector"),
 }
 
 
