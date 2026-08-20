@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use Security Anomaly ML in research, evaluation, or comparison work, please cite this software."
+title: "Security Anomaly ML"
+type: software
+version: 0.1.0
+date-released: 2026-08-20
+authors:
+  - family-names: Bondarenko
+    given-names: Ievgen
+    alias: Jack Bondarenko
+license: Apache-2.0
+repository-code: "https://github.com/ibondarenko1/security-anomaly-ml"
+url: "https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0"
+abstract: >-
+  Open-source machine-learning network-flow detector that converts
+  CICFlowMeter-compatible traffic into deterministic analyst-facing security
+  incidents using causal temporal features, a frozen model, incident
+  aggregation, and a versioned output contract.
+keywords:
+  - cybersecurity
+  - machine learning
+  - network security
+  - anomaly detection
+  - intrusion detection
+  - detection engineering
+  - CICFlowMeter
+  - security analytics
