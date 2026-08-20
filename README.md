@@ -2,37 +2,121 @@
 
 # Security Anomaly ML
 
-An open-source machine-learning system for network anomaly detection that turns high-volume flow detections into analyst-facing security incidents.
+Security Anomaly ML is an open-source batch network-flow anomaly detection system that converts unlabeled CICFlowMeter-compatible flows into promoted, analyst-facing security incidents.
 
-The project is built around a simple operational question: can a network-flow detector keep attack coverage high while reducing the number of objects a SOC analyst must review?
+[![CI](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml)
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](./LICENSE)
+[![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0)
 
-Current status: **Acceptable but operationally noisy.** The frozen pipeline generalized well at incident level on a locked temporal holdout, but it is not production-ready.
+**v0.1.0 is a usable research/evaluation release. It is not production-ready.** The frozen detector performed well on one future capture day from the same network family, but the remaining alert volume is too high for a normal Tier-1 production queue.
 
-## Architecture
+## Quick start
+
+Docker is the recommended path. The published image includes the exact verified frozen model, so no separate model download is needed.
+
+```bash
+docker pull ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
+
+docker run --rm --network none \
+  -v "$PWD:/data" \
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 \
+  validate /data/flows.csv
+
+docker run --rm --network none \
+  -v "$PWD:/data" \
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 \
+  analyze /data/flows.csv \
+  --output /data/incidents.jsonl
+```
+
+Windows PowerShell:
+
+```powershell
+docker pull ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
+
+docker run --rm --network none `
+  --mount "type=bind,source=$($PWD.Path),target=/data" `
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 `
+  validate /data/flows.csv
+
+docker run --rm --network none `
+  --mount "type=bind,source=$($PWD.Path),target=/data" `
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 `
+  analyze /data/flows.csv `
+  --output /data/incidents.jsonl
+```
+
+The mounted directory must be writable by the container's non-root UID/GID `10001`. Normal inference works with networking disabled.
+
+## How it works
+
+One input row represents one network flow. The product validates the label-free CSV, builds tie-safe causal context, scores each flow, groups flow alerts into deterministic five-minute incidents, and emits only promoted incidents.
 
 ```mermaid
 flowchart LR
-    A[Network flows] --> B[Temporal feature pipeline]
-    B --> C[Context Random Forest]
-    C --> D[Attack score]
-    D --> E[Flow threshold 0.10]
-    E --> F[Incident aggregation]
-    F --> G[Policy B: src + dst + dst port, 5 min]
-    G --> H[Incident promotion]
-    H --> I[max score >= 0.25]
-    I --> J[Analyst-facing incident]
+    A["CICFlowMeter flows"] --> B["Input validation"]
+    B --> C["128 causal features"]
+    C --> D["context-rf-v2 attack score"]
+    D --> E["Flow alert: score >= 0.10"]
+    E --> F["Policy B: src IP + dst IP + dst port / 5 min"]
+    F --> G["Promotion: max score >= 0.25"]
+    G --> H["incident-v1 JSONL"]
 ```
 
-## Locked temporal holdout
+The frozen feature contract is:
 
-The final v2 pipeline was frozen before February 18 evaluation. February 18 was never used for training, feature selection, threshold selection, aggregation selection, or promotion selection. No post-holdout tuning, suppression, or whitelisting was performed.
+```text
+76 CICFlowMeter flow features
++ 9 static port/protocol behavioral features
++ 43 causal temporal-context features
+= 128 model features
+```
 
-| Metric | Feb 18 holdout |
+Raw IP addresses and timestamps provide temporal and incident context but are not model identity features. Same-timestamp flows are processed as one peer group: all peers are featurized before that timestamp updates state.
+
+## Output
+
+The output is newline-delimited `incident-v1` JSON. Each object contains a deterministic incident ID, first/last timestamps, endpoints, destination port, protocols, flow count, aggregate attack scores, and frozen version metadata.
+
+```json
+{
+  "schema_version": "incident-v1",
+  "incident_id": "inc_<64-hex-digest>",
+  "first_seen": "2026-08-20T13:00:00",
+  "last_seen": "2026-08-20T13:00:05",
+  "src_ip": "192.0.2.10",
+  "dst_ip": "198.51.100.20",
+  "dst_port": 445,
+  "protocols": [6, 17],
+  "flow_count": 3,
+  "max_attack_score": 0.432590909091,
+  "mean_attack_score": 0.418368686869,
+  "promoted": true,
+  "product_version": "0.1.0",
+  "model_version": "context-rf-v2",
+  "feature_contract": "cicflow-v2-128"
+}
+```
+
+The synthetic regression fixture at [`tests/fixtures/product-v01/flows.csv`](tests/fixtures/product-v01/flows.csv) deterministically produces:
+
+- 12 processed flows;
+- 9 flow alerts;
+- 5 aggregated incidents;
+- 2 promoted incidents.
+
+These numbers test runtime stability; they are **not an accuracy benchmark** and contain no copied research-dataset rows.
+
+## Frozen validation results
+
+The v0.1 pipeline was frozen before evaluation on the February 18 temporal holdout. No thresholds, features, model parameters, aggregation rules, promotion rules, suppression, or whitelisting were changed after opening it.
+
+| Metric | Locked holdout |
 |---|---:|
 | Flow recall | 98.3686% |
 | Flow precision | 67.5499% |
 | Flow FPR | 2.1190% |
-| ROC-AUC | 0.996155 |
 | PR-AUC | 0.898915 |
 | Aggregated incident recall | 99.9917% |
 | Promoted incident recall | 99.9339% |
@@ -40,202 +124,141 @@ The final v2 pipeline was frozen before February 18 evaluation. February 18 was 
 | Flow-alert to incident reduction | 83.80% |
 | FP-object reduction | 96.74% |
 
-The flow detector missed the pre-existing 98.5% recall research gate by 0.1314 percentage point. Incident-level detection remained stable because multiple flows from the same security event often contributed evidence to one incident.
+**Verdict: acceptable but operationally noisy.** This is one future capture day with overlapping hosts/environment from the same dataset and network family. It is not evidence of generalization across arbitrary networks, and the remaining workload is too high for normal Tier-1 production use.
 
-### Workload reduction
+## Input format
 
-| Stage | Volume | FP volume | Recall | Precision | Rate/hour | FP/hour |
-|---|---:|---:|---:|---:|---:|---:|
-| Flow detector | 79,710 alerts | 25,866 flows | 98.3686% | 67.55% | 9,388.39 | 3,046.54 |
-| Policy B / 5 min | 13,795 incidents | 1,721 incidents | 99.9917% | 87.52% | 1,624.80 | 202.70 |
-| + promotion | 12,911 incidents | 844 incidents | 99.9339% | 93.46% | 1,520.68 | 99.41 |
+Input must be a UTF-8 CICFlowMeter-compatible CSV containing:
 
-The remaining workload is still too high for a normal Tier-1 queue. The project therefore does not claim production readiness.
+- `Src IP`, `Src Port`, `Dst IP`, `Dst Port`, `Protocol`, and `Timestamp`;
+- all 76 baseline numeric fields defined by [`cicflow-v2-128`](contracts/feature-contract-cicflow-v2-128.json);
+- optional `Flow ID`.
 
-## Temporal design
+`Label`, `label`, and `attack_cat` are not required and are removed if present. Validation rejects missing or duplicate columns, reserved derived fields, malformed timestamps, invalid ports/protocols, and non-numeric or non-finite model inputs. Source timestamps are timezone-naive; v0.1 does not invent a timezone.
 
-V2 uses the CIC-UNSW-NB15 flow export and a fixed capture-day split:
-
-```text
-2015-01-22 -> train          1,765,922 flows
-2015-02-17 -> validation       498,890 flows
-2015-02-18 -> locked holdout 1,275,429 flows
-```
-
-Raw IP addresses and timestamps are used only to construct causal context and incident identity. They are not model features.
-
-The feature builder enforces tie-safe causality. CICFlowMeter timestamps have one-second precision and many flows share the same timestamp. Every flow at time `t` can use state only from timestamps strictly earlier than `t`. Same-second flows are updated as one group after scoring. Context is reset at split boundaries.
-
-The v2 feature contract contains:
-
-- 76 numeric CICFlowMeter flow features;
-- 9 numeric port/protocol behavioral representations;
-- 43 temporal context features;
-- 128 model features total.
-
-Examples of context features include short-window source/destination connection counts, distinct endpoints and ports, repeated source-destination activity, rolling packets and bytes, protocol ratios, flag activity, port diversity, and time since prior related flows.
-
-## Model development
-
-The main v2 candidate is a Random Forest:
-
-```python
-RandomForestClassifier(
-    n_estimators=300,
-    max_depth=24,
-    min_samples_split=5,
-    min_samples_leaf=2,
-    max_features=0.5,
-    max_samples=0.8,
-    bootstrap=True,
-    random_state=42,
-    n_jobs=-1,
-)
-```
-
-On February 17 validation, adding temporal context reduced false positives by 37.7% relative to the 76-feature baseline while preserving the 98.5% attack-recall gate.
-
-| Validation metric | Baseline v2 | Context v2 |
-|---|---:|---:|
-| Threshold | 0.06 | 0.10 |
-| Recall | 98.5957% | 98.5908% |
-| Precision | 50.8612% | 62.4269% |
-| PR-AUC | 0.781595 | 0.847746 |
-| FPR | 4.0541% | 2.5255% |
-| False positives | 19,400 | 12,085 |
-
-Further score blending, Fuzzer-only weighting, and temporal stacking were evaluated without opening the holdout. They did not produce a large enough operational improvement to justify replacing the frozen Context model.
-
-## Incident layer
-
-Flow-level FPR is not the same as analyst workload. Repeated alerts are grouped into incidents.
-
-The selected aggregation policy is:
-
-```text
-key: src_ip + dst_ip + dst_port
-window: 5 minutes
-```
-
-On February 17 this converted 32,164 flow alerts into 5,408 incidents, an 83.19% reduction, with 99.978% attack-incident recall.
-
-A deterministic incident promotion rule was selected only from causal January OOF scores:
-
-```text
-promote if max_attack_score >= 0.25
-```
-
-On February 17 it reduced pure-FP incidents from 870 to 739 while keeping incident recall at 99.9121%. The rule was then frozen before February 18.
-
-## Category behavior
-
-The final holdout exposed concentrated flow-level weaknesses:
-
-| Category | Flow recall | Promoted incident recall |
-|---|---:|---:|
-| Fuzzers | 95.4874% | 100.0000% |
-| Analysis | 76.3441% | 100.0000%* |
-| Exploits | 99.8590% | 99.9493% |
-| DoS | 99.9637% | 99.9468% |
-| Reconnaissance | 99.9711% | 99.9576% |
-| Generic | 99.8958% | 99.8968% |
-| Backdoor | 100.0000% | 99.5575% |
-| Shellcode | 100.0000% | 100.0000% |
-| Worms | 100.0000% | 100.0000% |
-
-`*` Analysis contains only 10 reference incidents on February 18, so the incident estimate is unstable.
-
-## Repository layout
-
-```text
-security-anomaly-ml/
-├── src/
-│   ├── explore_cic_unsw_nb15.py
-│   ├── build_temporal_features.py
-│   ├── train_v2_ablation.py
-│   ├── analyze_v2_ensemble.py
-│   ├── train_v2_fuzzer_weighting.py
-│   ├── train_v2_temporal_stacking.py
-│   ├── analyze_incident_aggregation.py
-│   ├── analyze_incident_promotion.py
-│   └── evaluate_v2_feb18_holdout.py
-├── tests/
-├── data/
-│   ├── raw/
-│   └── processed/
-├── models/
-├── requirements.txt
-├── LICENSE
-└── README.md
-```
-
-Raw datasets, generated Parquet score files, and trained model binaries are intentionally excluded from Git history.
-
-## Setup
-
-Python 3.11 or newer is recommended.
-
-Windows PowerShell:
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
-
-Linux/macOS:
+Use `validate` before analysis when integrating a new exporter:
 
 ```bash
-python3 -m venv .venv
+security-anomaly validate flows.csv
+```
+
+## Docker
+
+The immutable release tag is:
+
+```text
+ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
+```
+
+It includes Python 3.13, the installed package, contracts, pinned runtime dependencies, and the verified model. It runs as non-root and requires no network during inference. Build and operational details are in [`docs/DOCKER.md`](docs/DOCKER.md).
+
+No mutable `latest` tag is published for v0.1.0.
+
+## Python CLI
+
+Download the wheel from the [v0.1.0 GitHub Release](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0), then install it into Python 3.13:
+
+```bash
+python3.13 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install security_anomaly_ml-0.1.0-py3-none-any.whl
+security-anomaly version
 ```
 
-Run tests:
+The Python wheel intentionally does not embed the model. Obtain the existing artifact from the [`model-context-rf-v2` release](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/model-context-rf-v2), or from a source checkout run:
 
 ```bash
-python -m pytest -q
+python tools/fetch_frozen_model.py \
+  --tag model-context-rf-v2 \
+  --destination models/context-rf-v2.joblib
+
+security-anomaly model-info --model models/context-rf-v2.joblib
+security-anomaly analyze flows.csv \
+  --model models/context-rf-v2.joblib \
+  --output incidents.jsonl
 ```
 
-The development environment used during the locked experiment reported 34 passing tests. Some reproduction paths require the large source datasets and generated intermediate artifacts that are not stored in this repository.
+The downloader verifies the frozen SHA-256 before success and never silently replaces a different file. Full CLI behavior and exit codes are documented in [`docs/CLI.md`](docs/CLI.md).
 
-## Reproduction path
+## Reproducibility and CI
 
-After obtaining the required datasets:
+Public CI runs on every pull request and push to `main` and requires only a clean checkout plus the public frozen-model release. It verifies:
 
-```bash
-python src/explore_cic_unsw_nb15.py
-python src/build_temporal_features.py --memory-limit 10GB --threads 8
-python src/train_v2_ablation.py
-python src/analyze_v2_ensemble.py
-python src/train_v2_fuzzer_weighting.py
-python src/train_v2_temporal_stacking.py
-python src/analyze_incident_aggregation.py --memory-limit 10GB --threads 8
-python src/analyze_incident_promotion.py --memory-limit 10GB --threads 8
-```
+- unit and frozen-contract tests;
+- pinned runtime dependency vulnerability audit;
+- clean wheel/sdist build and outside-checkout installation;
+- public model download and SHA verification;
+- real-model end-to-end golden regression;
+- non-root offline Docker build and byte-identical golden output;
+- exclusion of datasets and research artifacts from the runtime image.
 
-`evaluate_v2_feb18_holdout.py` is retained for audit and reproduction of the already-completed locked evaluation. It should not be treated as permission to tune on February 18.
+Goldens are never rewritten automatically. Details are in [`docs/CI.md`](docs/CI.md).
 
-## Datasets
+## Model artifact
 
-The project uses two related public research datasets at different stages:
+| Field | Frozen value |
+|---|---|
+| Model version | `context-rf-v2` |
+| Release tag | [`model-context-rf-v2`](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/model-context-rf-v2) |
+| Filename | `context-rf-v2.joblib` |
+| SHA-256 | `4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72` |
+| Python | `3.13.7` |
+| Feature builder | `causal-temporal-v2` |
+| Feature contract | `cicflow-v2-128` |
+| Flow threshold | `>= 0.10` |
+| Incident policy | Policy B, gap `> 300s` |
+| Promotion | `max_attack_score >= 0.25` |
 
-- UNSW-NB15, published by UNSW Canberra;
-- CIC-UNSW-NB15, a CICFlowMeter export derived from UNSW-NB15 packet captures and published by the Canadian Institute for Cybersecurity.
+Scores are ranking signals, not calibrated real-world probabilities. The model is excluded from Git history and is never reserialized by the product build.
 
-Dataset files are not redistributed here. Obtain them from their publishers and comply with the original terms and citation requirements. Third-party datasets are not covered by this repository's Apache-2.0 license.
+## Security and privacy
+
+Security Anomaly ML processes sensitive network-flow metadata locally. Normal inference performs no telemetry, cloud upload, hidden download, or other outbound network call; the Docker path is tested with `--network none`.
+
+- Vulnerability reporting: [`SECURITY.md`](SECURITY.md)
+- Data handling and privacy: [`docs/PRIVACY.md`](docs/PRIVACY.md)
+
+Do not attach real packet captures, raw flow exports, internal IP inventories, or unredacted incidents to public issues.
 
 ## Limitations
 
-- The holdout is one future capture day, not evidence across many independent networks.
-- Endpoint populations overlap across capture days.
-- CICFlowMeter timestamps have only one-second precision.
-- The model score is not a calibrated real-world probability.
-- Fuzzers and Analysis remain weaker at flow level.
-- The promoted incident rate is still too high for normal production Tier-1 operations.
-- No entity whitelist or port suppression was used, by design.
-- No claim of production readiness is made.
+- Research/evaluation grade; not production-ready and not a SOC replacement.
+- Batch CSV processing only; no streaming, API, dashboard, or persistent state service.
+- CICFlowMeter-compatible input only.
+- Frozen Python 3.13 serialization/runtime compatibility.
+- Input timestamps have source-defined, timezone-naive semantics and one-second granularity.
+- Validation covers one future day from an overlapping network/dataset family, not arbitrary networks.
+- Flow-level weaknesses remain concentrated in Fuzzers and Analysis traffic.
+- The score is not calibrated as a real-world attack probability.
+- Alert workload remains too high for normal Tier-1 production operations.
+
+## Research methodology
+
+The production-facing v0.1 pipeline was selected using chronological capture days:
+
+```text
+2015-01-22 -> training
+2015-02-17 -> validation
+2015-02-18 -> locked temporal holdout
+```
+
+Temporal context resets at split and batch boundaries. February 18 was not used for training, feature selection, threshold selection, aggregation selection, or promotion selection. Research scripts remain available for audit, but datasets and generated evaluation artifacts are not redistributed.
+
+The research uses UNSW-NB15 and CIC-UNSW-NB15 under their publishers' terms. Third-party dataset terms are not covered by this repository's Apache-2.0 license.
+
+## Development and tests
+
+Python 3.13 is required for the frozen product runtime.
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pytest -q
+```
+
+Some research-reproduction tests require non-redistributed datasets or generated artifacts and skip explicitly in a clean public checkout. Product CI is fully reproducible from public inputs.
 
 ## License
 
-Original source code in this repository is licensed under Apache License 2.0. Dataset licenses and terms remain with their original publishers.
+Original source code is licensed under the [Apache License 2.0](LICENSE). Dataset licenses and terms remain with their original publishers.

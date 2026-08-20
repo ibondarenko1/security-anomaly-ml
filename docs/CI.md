@@ -4,6 +4,10 @@
 
 ## Jobs
 
+### dependency-audit
+
+Installs the pinned `pip-audit==2.10.1` scanner and audits the complete pinned container runtime closure in `requirements-container.txt`. Known vulnerability findings or dependency-resolution errors fail the job. This explicit CI security check uses network access to query vulnerability data; normal product inference does not.
+
 ### unit-and-contracts
 
 Uses Python 3.13.7, installs the source/test dependencies, runs the complete committed suite without an external model, and runs `pip check`. Real-model-only tests skip explicitly. Contract tests verify repository and package-resource bytes, including the frozen feature-contract SHA.
