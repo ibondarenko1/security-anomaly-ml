@@ -15,6 +15,21 @@ env:
   MODEL_SHA256: 4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72
 
 jobs:
+  dependency-audit:
+    name: dependency-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Audit pinned runtime dependency closure
+        run: |
+          python -m pip install --upgrade pip pip-audit==2.10.1
+          python -m pip_audit --strict -r requirements-container.txt
+
   unit-and-contracts:
     name: unit-and-contracts
     runs-on: ubuntu-latest

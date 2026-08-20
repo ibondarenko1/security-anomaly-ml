@@ -7,10 +7,12 @@ The CLI accepts unlabeled CICFlowMeter-compatible CSV flows, runs the frozen lab
 Python 3.13.x is required by the frozen joblib manifest.
 
 ```bash
-python -m pip install .
+python -m pip install security_anomaly_ml-0.1.0-py3-none-any.whl
 security-anomaly --help
 security-anomaly version
 ```
+
+The wheel and source distribution are attached to the [`v0.1.0` GitHub Release](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0). A source checkout may instead use `python -m pip install .`.
 
 The installed wheel contains the feature contract, model manifest, and public incident schema. The model binary is deliberately separate from Git and is never downloaded automatically.
 

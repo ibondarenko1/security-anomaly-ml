@@ -4,6 +4,20 @@ The v0.1 image packages the installed `security-anomaly-ml` wheel, exact Python 
 
 This remains a research/evaluation prototype and is not production-ready.
 
+## Published v0.1.0 image
+
+The normal user image includes the verified frozen model:
+
+```bash
+docker pull ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
+docker run --rm --network none \
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 version
+docker run --rm --network none \
+  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 model-info
+```
+
+Only the immutable release tag `0.1.0` is published. v0.1.0 does not publish a mutable `latest` tag. The GitHub Release records the image's immutable registry digest.
+
 ## Frozen model release
 
 The dedicated prerelease is [`model-context-rf-v2`](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/model-context-rf-v2). It is an artifact-distribution release, not the final application `v0.1.0` release.
@@ -23,7 +37,7 @@ Required model SHA-256:
 
 The release asset was downloaded again into a separate directory after publication and independently matched this hash. The CLI never downloads a model silently.
 
-## Fetch and build
+## Build from source
 
 Download the exact asset outside the primary Docker context:
 
@@ -52,7 +66,7 @@ sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d
 
 The strict `.dockerignore` sends only wheel-build inputs. Research scripts, tests, datasets, models from the checkout, `.git`, virtual environments, caches, and generated evaluation artifacts are excluded.
 
-## Use
+## Use a locally built image
 
 The image sets `SECURITY_ANOMALY_MODEL=/opt/security-anomaly/models/context-rf-v2.joblib`, so normal use needs no `--model` argument:
 

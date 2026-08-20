@@ -18,6 +18,14 @@ RUN python -m pip wheel --wheel-dir /wheels -r requirements-container.txt \
 FROM ${PYTHON_IMAGE} AS runtime
 
 ARG MODEL_SHA256=4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72
+ARG SOURCE_REVISION=unknown
+
+LABEL org.opencontainers.image.title="Security Anomaly ML" \
+    org.opencontainers.image.description="Research-grade batch network-flow anomaly detection" \
+    org.opencontainers.image.source="https://github.com/ibondarenko1/security-anomaly-ml" \
+    org.opencontainers.image.version="0.1.0" \
+    org.opencontainers.image.revision="${SOURCE_REVISION}" \
+    org.opencontainers.image.licenses="Apache-2.0"
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
