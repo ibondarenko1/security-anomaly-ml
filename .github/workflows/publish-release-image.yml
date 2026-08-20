@@ -1,0 +1,66 @@
+name: Publish release image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  PYTHON_VERSION: "3.13.7"
+  MODEL_RELEASE_TAG: model-context-rf-v2
+  MODEL_SHA256: 4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72
+  IMAGE: ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
+
+jobs:
+  publish:
+    name: verify-and-publish-ghcr
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download and verify frozen model
+        run: |
+          python tools/fetch_frozen_model.py \
+            --tag "$MODEL_RELEASE_TAG" \
+            --destination "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
+            --sha256 "$MODEL_SHA256"
+
+      - name: Build exact-commit image
+        run: |
+          docker build \
+            --build-context model="$RUNNER_TEMP/frozen-model" \
+            --build-arg SOURCE_REVISION="$GITHUB_SHA" \
+            --tag "$IMAGE" .
+
+      - name: Run offline non-root golden regression
+        run: |
+          docker run --rm --network none "$IMAGE" version
+          docker run --rm --network none "$IMAGE" model-info
+          test "$(docker run --rm --network none --entrypoint id "$IMAGE" -u)" = "10001"
+          mkdir -p "$RUNNER_TEMP/docker-data"
+          cp tests/fixtures/product-v01/flows.csv "$RUNNER_TEMP/docker-data/flows.csv"
+          chmod 0777 "$RUNNER_TEMP/docker-data"
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/docker-data:/data" \
+            "$IMAGE" validate /data/flows.csv
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/docker-data:/data" \
+            "$IMAGE" analyze /data/flows.csv --output /data/incidents.jsonl
+          cmp "$RUNNER_TEMP/docker-data/incidents.jsonl" \
+            tests/fixtures/product-v01/expected-incidents.jsonl
+
+      - name: Publish immutable v0.1.0 tag
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+            --username "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE"
+          docker buildx imagetools inspect "$IMAGE"
