@@ -5,6 +5,8 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
+__version__ = "0.1.0"
+
 __all__ = [
     "ArtifactIntegrityError",
     "CausalTemporalFeatureBuilder",
@@ -19,6 +21,12 @@ __all__ = [
     "InputContractError",
     "ModelCompatibilityError",
     "SecurityAnomalyDetector",
+    "ValidatedFlowBatch",
+    "validate_flow_records",
+    "read_and_validate_flow_csv",
+    "incident_to_v1",
+    "promoted_incidents_to_v1",
+    "write_incidents_jsonl",
 ]
 
 _EXPORTS = {
@@ -35,6 +43,12 @@ _EXPORTS = {
     "BatchAnalysisResult": (".results", "BatchAnalysisResult"),
     "FrozenOperationalPolicy": (".detector", "FrozenOperationalPolicy"),
     "SecurityAnomalyDetector": (".detector", "SecurityAnomalyDetector"),
+    "ValidatedFlowBatch": (".validation", "ValidatedFlowBatch"),
+    "validate_flow_records": (".validation", "validate_flow_records"),
+    "read_and_validate_flow_csv": (".validation", "read_and_validate_flow_csv"),
+    "incident_to_v1": (".serialization", "incident_to_v1"),
+    "promoted_incidents_to_v1": (".serialization", "promoted_incidents_to_v1"),
+    "write_incidents_jsonl": (".serialization", "write_incidents_jsonl"),
 }
 
 

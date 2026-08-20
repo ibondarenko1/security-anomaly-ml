@@ -6,3 +6,4 @@ matplotlib
 pytest
 joblib
 duckdb
+jsonschema==4.25.1

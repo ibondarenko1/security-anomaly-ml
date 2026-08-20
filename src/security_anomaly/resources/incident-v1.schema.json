@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ibondarenko1/security-anomaly-ml/contracts/incident-v1.schema.json",
+  "title": "Security Anomaly ML promoted incident v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "incident_id",
+    "first_seen",
+    "last_seen",
+    "src_ip",
+    "dst_ip",
+    "dst_port",
+    "protocols",
+    "flow_count",
+    "max_attack_score",
+    "mean_attack_score",
+    "promoted",
+    "product_version",
+    "model_version",
+    "feature_contract"
+  ],
+  "properties": {
+    "schema_version": {"const": "incident-v1"},
+    "incident_id": {
+      "type": "string",
+      "pattern": "^inc_[0-9a-f]{64}$"
+    },
+    "first_seen": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$"
+    },
+    "last_seen": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$"
+    },
+    "src_ip": {"type": "string", "minLength": 1},
+    "dst_ip": {"type": "string", "minLength": 1},
+    "dst_port": {"type": "integer", "minimum": 0, "maximum": 65535},
+    "protocols": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "integer", "minimum": 0, "maximum": 255}
+    },
+    "flow_count": {"type": "integer", "minimum": 1},
+    "max_attack_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "mean_attack_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "promoted": {"const": true},
+    "product_version": {"const": "0.1.0"},
+    "model_version": {"const": "context-rf-v2"},
+    "feature_contract": {"const": "cicflow-v2-128"}
+  }
+}

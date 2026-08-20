@@ -16,14 +16,10 @@ import numpy as np
 import pandas as pd
 
 from .contracts import FeatureContract
-
-
-TIMESTAMP_FORMAT = "%d/%m/%Y %I:%M:%S %p"
-RESERVED_COLUMNS = ("_source_row_id", "_event_ts", "_flow_bytes", "_flow_packets")
-
-
-class InputContractError(ValueError):
-    """Raised when an input batch cannot satisfy the frozen feature contract."""
+from .validation import (
+    InputContractError,
+    validate_flow_records,
+)
 
 
 def quote_identifier(name: str) -> str:
@@ -187,65 +183,10 @@ class CausalTemporalFeatureBuilder:
     def _normalize_input(
         self, records: pd.DataFrame | Sequence[Mapping[str, Any]]
     ) -> pd.DataFrame:
-        frame = records.copy() if isinstance(records, pd.DataFrame) else pd.DataFrame(records)
-        if frame.columns.has_duplicates:
-            duplicates = frame.columns[frame.columns.duplicated()].tolist()
-            raise InputContractError(f"Input contains duplicate columns: {duplicates}")
-        collisions = sorted(set(RESERVED_COLUMNS) & set(frame.columns))
-        if collisions:
-            raise InputContractError(f"Input uses reserved columns: {collisions}")
-        missing = [name for name in self.contract.required_input_columns if name not in frame]
-        if missing:
-            raise InputContractError(f"Missing required CICFlowMeter columns: {missing}")
-
-        frame = frame.reset_index(drop=True)
+        validated = validate_flow_records(records, contract=self.contract)
+        frame = validated.frame.copy()
         frame["_source_row_id"] = np.arange(len(frame), dtype=np.int64)
-        parsed = pd.to_datetime(
-            frame["Timestamp"], format=TIMESTAMP_FORMAT, errors="coerce"
-        )
-        if parsed.isna().any():
-            bad_rows = frame.index[parsed.isna()].tolist()[:20]
-            raise InputContractError(
-                "Timestamp must use CICFlowMeter format "
-                f"{TIMESTAMP_FORMAT!r}; invalid rows: {bad_rows}"
-            )
-        frame["_event_ts"] = parsed
-
-        for name in ("Src IP", "Dst IP"):
-            invalid = frame[name].isna() | frame[name].astype(str).str.strip().eq("")
-            if invalid.any():
-                raise InputContractError(f"{name} contains missing/empty values")
-            frame[name] = frame[name].astype(str)
-
-        numeric_columns = list(
-            dict.fromkeys(
-                [
-                    *self.contract.baseline_features,
-                    "Src Port",
-                    "Dst Port",
-                    "Protocol",
-                ]
-            )
-        )
-        for name in numeric_columns:
-            converted = pd.to_numeric(frame[name], errors="coerce")
-            if converted.isna().any():
-                bad_rows = frame.index[converted.isna()].tolist()[:20]
-                raise InputContractError(f"{name} is non-numeric at rows {bad_rows}")
-            frame[name] = converted
-        numeric_matrix = frame[numeric_columns].to_numpy(dtype=float, copy=False)
-        if not np.isfinite(numeric_matrix).all():
-            raise InputContractError("Numeric input fields must be finite")
-
-        for name in ("Src Port", "Dst Port"):
-            values = frame[name].to_numpy(dtype=float)
-            if ((values < 0) | (values > 65535) | (values != np.floor(values))).any():
-                raise InputContractError(f"{name} must contain integers in [0, 65535]")
-            frame[name] = values.astype(np.int64)
-        protocols = frame["Protocol"].to_numpy(dtype=float)
-        if ((protocols < 0) | (protocols > 255) | (protocols != np.floor(protocols))).any():
-            raise InputContractError("Protocol must contain integers in [0, 255]")
-        frame["Protocol"] = protocols.astype(np.int64)
+        frame["_event_ts"] = validated.timestamps
 
         frame["_flow_bytes"] = (
             frame["Total Length of Fwd Packet"]

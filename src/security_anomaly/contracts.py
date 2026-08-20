@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .package_resources import FEATURE_CONTRACT_RESOURCE, resource_bytes, resource_ref
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_FEATURE_CONTRACT_PATH = (
-    PROJECT_ROOT / "contracts" / "feature-contract-cicflow-v2-128.json"
-)
+# Backward-compatible name, now resolving inside the installed package rather
+# than relying on PROJECT_ROOT/contracts being present.
+DEFAULT_FEATURE_CONTRACT_PATH = Path(str(resource_ref(FEATURE_CONTRACT_RESOURCE)))
 
 
 class ContractError(ValueError):
@@ -39,18 +39,32 @@ def load_json(path: str | Path) -> dict[str, Any]:
 class FeatureContract:
     """Validated ordered feature contract used by the frozen Context model."""
 
-    path: Path
+    path: Path | None
     sha256: str
     document: dict[str, Any]
 
     @classmethod
     def load(
         cls,
-        path: str | Path = DEFAULT_FEATURE_CONTRACT_PATH,
+        path: str | Path | None = None,
         *,
         expected_version: str | None = None,
         expected_sha256: str | None = None,
     ) -> "FeatureContract":
+        if path is None:
+            raw = resource_bytes(FEATURE_CONTRACT_RESOURCE)
+            actual_sha256 = hashlib.sha256(raw).hexdigest()
+            if expected_sha256 and actual_sha256 != expected_sha256:
+                raise ContractError(
+                    "Feature contract SHA256 mismatch: "
+                    f"expected {expected_sha256}, got {actual_sha256}"
+                )
+            document = json.loads(raw.decode("utf-8"))
+            if not isinstance(document, dict):
+                raise ContractError("Packaged feature contract must be a JSON object")
+            contract = cls(None, actual_sha256, document)
+            contract._validate(expected_version=expected_version)
+            return contract
         resolved = Path(path).resolve()
         if not resolved.is_file():
             raise FileNotFoundError(f"Feature contract not found: {resolved}")
