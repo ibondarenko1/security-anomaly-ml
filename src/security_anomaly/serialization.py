@@ -18,6 +18,7 @@ INCIDENT_SCHEMA_VERSION = "incident-v1"
 PRODUCT_VERSION = "0.1.0"
 MODEL_VERSION = "context-rf-v2"
 FEATURE_CONTRACT_VERSION = "cicflow-v2-128"
+PUBLIC_SCORE_DECIMAL_PLACES = 12
 
 
 class IncidentSerializationError(ValueError):
@@ -34,6 +35,12 @@ def _source_naive_iso(value: datetime) -> str:
             "incident-v1 timestamps must retain source-defined naive timezone semantics"
         )
     return value.isoformat(timespec="seconds")
+
+
+def _public_score(value: float) -> float:
+    """Canonicalize an output score without changing detector decisions."""
+
+    return round(value, PUBLIC_SCORE_DECIMAL_PLACES)
 
 
 def incident_id_v1(incident: IncidentDetection) -> str:
@@ -93,8 +100,8 @@ def incident_to_v1(
         "dst_port": int(incident.dst_port),
         "protocols": protocols,
         "flow_count": int(incident.flow_count),
-        "max_attack_score": scores[0],
-        "mean_attack_score": scores[1],
+        "max_attack_score": _public_score(scores[0]),
+        "mean_attack_score": _public_score(scores[1]),
         "promoted": True,
         "product_version": product_version,
         "model_version": model_version,

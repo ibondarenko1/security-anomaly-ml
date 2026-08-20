@@ -1,0 +1,14 @@
+# Fail closed: only the installable runtime package inputs enter the primary
+# build context. The verified model is supplied as a separate named context.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!requirements-container.txt
+!src/
+!src/security_anomaly/
+!src/security_anomaly/**
+
+# Consequently excluded: .git, local venvs, caches, build/dist, *.egg-info,
+# data/raw, data/processed, models/*, tests, tools, research/evaluation scripts,
+# score dumps, IDE files, and temporary release bundles.

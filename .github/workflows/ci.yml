@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.13.7"
+  MODEL_RELEASE_TAG: model-context-rf-v2
+  MODEL_SHA256: 4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72
+
+jobs:
+  unit-and-contracts:
+    name: unit-and-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Install source and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install .
+      - name: Run unit, contract, and public-fixture tests
+        run: python -m pytest -q
+      - name: Verify environment consistency
+        run: python -m pip check
+
+  clean-install-cli:
+    name: clean-install-cli
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Build wheel and source distribution
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Install wheel into a separate clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/security-anomaly-clean"
+          "$RUNNER_TEMP/security-anomaly-clean/bin/python" -m pip install dist/*.whl
+          "$RUNNER_TEMP/security-anomaly-clean/bin/python" -m pip check
+      - name: Run CLI outside the checkout and prove site-packages resources
+        run: |
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/security-anomaly-clean/bin/security-anomaly" --help
+          "$RUNNER_TEMP/security-anomaly-clean/bin/security-anomaly" version
+          "$RUNNER_TEMP/security-anomaly-clean/bin/security-anomaly" validate \
+            "$GITHUB_WORKSPACE/tests/fixtures/product-v01/flows.csv"
+          "$RUNNER_TEMP/security-anomaly-clean/bin/python" - <<'PY'
+          import sys
+          from importlib.resources import files
+          import security_anomaly
+
+          resources = files("security_anomaly.resources")
+          assert "site-packages" in str(resources)
+          assert str(resources).startswith(sys.prefix)
+          for name in (
+              "feature-contract-cicflow-v2-128.json",
+              "model-manifest-context-rf-v2.json",
+              "incident-v1.schema.json",
+          ):
+              assert resources.joinpath(name).is_file(), name
+          print({"product_version": security_anomaly.__version__, "resources": str(resources)})
+          PY
+
+  frozen-model-e2e:
+    name: frozen-model-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Download and verify public frozen model
+        run: |
+          python tools/fetch_frozen_model.py \
+            --tag "$MODEL_RELEASE_TAG" \
+            --destination "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
+            --sha256 "$MODEL_SHA256"
+      - name: Build and install wheel with product-test dependencies
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+          python -m venv "$RUNNER_TEMP/security-anomaly-e2e"
+          "$RUNNER_TEMP/security-anomaly-e2e/bin/python" -m pip install \
+            dist/*.whl pytest jsonschema
+          "$RUNNER_TEMP/security-anomaly-e2e/bin/python" -m pip check
+      - name: Verify model metadata and complete real-model regression
+        run: |
+          "$RUNNER_TEMP/security-anomaly-e2e/bin/security-anomaly" model-info \
+            --model "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib"
+          SECURITY_ANOMALY_E2E_MODEL="$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
+            "$RUNNER_TEMP/security-anomaly-e2e/bin/python" -m pytest -q \
+            tests/test_product_e2e.py
+      - name: Verify repeated installed-CLI golden output
+        run: |
+          "$RUNNER_TEMP/security-anomaly-e2e/bin/security-anomaly" analyze \
+            tests/fixtures/product-v01/flows.csv \
+            --model "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
+            --output "$RUNNER_TEMP/incidents-1.jsonl"
+          "$RUNNER_TEMP/security-anomaly-e2e/bin/security-anomaly" analyze \
+            tests/fixtures/product-v01/flows.csv \
+            --model "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
+            --output "$RUNNER_TEMP/incidents-2.jsonl"
+          cmp "$RUNNER_TEMP/incidents-1.jsonl" "$RUNNER_TEMP/incidents-2.jsonl"
+          cmp "$RUNNER_TEMP/incidents-1.jsonl" \
+            tests/fixtures/product-v01/expected-incidents.jsonl
+
+  docker-smoke:
+    name: docker-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Download and verify public frozen model
+        run: |
+          python tools/fetch_frozen_model.py \
+            --tag "$MODEL_RELEASE_TAG" \
+            --destination "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
+            --sha256 "$MODEL_SHA256"
+      - name: Build image from verified named model context
+        run: |
+          docker build \
+            --build-context model="$RUNNER_TEMP/frozen-model" \
+            --tag security-anomaly-ml:ci .
+          docker image inspect security-anomaly-ml:ci --format \
+            'image_size_bytes={{.Size}} image_id={{.Id}}'
+          docker buildx imagetools inspect \
+            python:3.13.7-slim-bookworm@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d
+      - name: Run offline non-root CLI and compare Docker golden
+        run: |
+          docker run --rm --network none security-anomaly-ml:ci version
+          docker run --rm --network none security-anomaly-ml:ci model-info
+          test "$(docker run --rm --network none --entrypoint id security-anomaly-ml:ci -u)" != "0"
+          mkdir -p "$RUNNER_TEMP/docker-data"
+          cp tests/fixtures/product-v01/flows.csv "$RUNNER_TEMP/docker-data/flows.csv"
+          chmod 0777 "$RUNNER_TEMP/docker-data"
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/docker-data:/data" \
+            security-anomaly-ml:ci validate /data/flows.csv
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/docker-data:/data" \
+            security-anomaly-ml:ci analyze /data/flows.csv \
+            --output /data/incidents.jsonl
+          cmp "$RUNNER_TEMP/docker-data/incidents.jsonl" \
+            tests/fixtures/product-v01/expected-incidents.jsonl
+      - name: Verify runtime image excludes research inputs
+        run: |
+          docker run --rm --network none --entrypoint python security-anomaly-ml:ci -c \
+            "from pathlib import Path; assert not Path('/data/raw').exists(); assert not Path('/data/processed').exists(); assert not Path('/build').exists(); assert not Path('/tmp/wheels').exists()"

@@ -1,0 +1,144 @@
+{
+  "schema_version": "product-v01-regression-v1",
+  "fixture": {
+    "path": "tests/fixtures/product-v01/flows.csv",
+    "sha256": "19c3410cef052c611b3d8d65f600c1363666b2e8bf9089c6179a5acfe0f33b09",
+    "rows": 12,
+    "fully_synthetic": true,
+    "contains_research_dataset_rows": false,
+    "generator": "tools/generate_product_fixture.py"
+  },
+  "expected_output": {
+    "path": "tests/fixtures/product-v01/expected-incidents.jsonl",
+    "sha256": "4c6b8a5d93d7c005d7e3a9741562fb7ba08025ed5feed7dda7573736066df073"
+  },
+  "expected_counts": {
+    "flows_processed": 12,
+    "flow_alerts": 9,
+    "incidents": 5,
+    "promoted_incidents": 2
+  },
+  "versions": {
+    "product_version": "0.1.0",
+    "model_version": "context-rf-v2",
+    "model_sha256": "4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72",
+    "feature_contract": "cicflow-v2-128",
+    "feature_builder": "causal-temporal-v2",
+    "incident_contract": "incident-v1",
+    "model_release_tag": "model-context-rf-v2"
+  },
+  "frozen_policy": {
+    "flow_threshold": 0.1,
+    "flow_operator": ">=",
+    "aggregation_policy": "B",
+    "grouping_key": [
+      "src_ip",
+      "dst_ip",
+      "dst_port"
+    ],
+    "incident_window_seconds": 300,
+    "new_incident_gap_operator": ">",
+    "promotion_threshold": 0.25,
+    "promotion_operator": ">="
+  },
+  "score_regression": {
+    "absolute_tolerance": 1e-12,
+    "public_incident_decimal_places": 12,
+    "scores_by_source_row_id": {
+      "0": 0.10905555555555556,
+      "1": 0.09088888888888891,
+      "2": 0.14411111111111108,
+      "3": 0.4112575757575758,
+      "4": 0.4112575757575758,
+      "5": 0.11253703703703706,
+      "6": 0.4325909090909091,
+      "7": 0.15135449735449738,
+      "8": 0.08777777777777779,
+      "9": 0.1624656084656085,
+      "10": 0.34781313131313135,
+      "11": 0.08755555555555558
+    }
+  },
+  "incident_regression": [
+    {
+      "src_ip": "192.0.2.1",
+      "dst_ip": "198.51.100.1",
+      "dst_port": 80,
+      "first_seen": "2026-08-20T13:00:00",
+      "last_seen": "2026-08-20T13:00:05",
+      "protocols": [
+        6
+      ],
+      "source_row_ids": [
+        0,
+        7
+      ],
+      "flow_count": 2,
+      "promoted": false
+    },
+    {
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "dst_port": 445,
+      "first_seen": "2026-08-20T13:00:00",
+      "last_seen": "2026-08-20T13:00:05",
+      "protocols": [
+        6,
+        17
+      ],
+      "source_row_ids": [
+        3,
+        4,
+        6
+      ],
+      "flow_count": 3,
+      "promoted": true
+    },
+    {
+      "src_ip": "192.0.2.3",
+      "dst_ip": "198.51.100.1",
+      "dst_port": 53,
+      "first_seen": "2026-08-20T13:00:00",
+      "last_seen": "2026-08-20T13:00:10",
+      "protocols": [
+        17
+      ],
+      "source_row_ids": [
+        2,
+        9
+      ],
+      "flow_count": 2,
+      "promoted": false
+    },
+    {
+      "src_ip": "192.0.2.2",
+      "dst_ip": "198.51.100.2",
+      "dst_port": 443,
+      "first_seen": "2026-08-20T13:00:05",
+      "last_seen": "2026-08-20T13:00:05",
+      "protocols": [
+        6
+      ],
+      "source_row_ids": [
+        5
+      ],
+      "flow_count": 1,
+      "promoted": false
+    },
+    {
+      "src_ip": "192.0.2.10",
+      "dst_ip": "198.51.100.20",
+      "dst_port": 445,
+      "first_seen": "2026-08-20T13:06:00",
+      "last_seen": "2026-08-20T13:06:00",
+      "protocols": [
+        6
+      ],
+      "source_row_ids": [
+        10
+      ],
+      "flow_count": 1,
+      "promoted": true
+    }
+  ]
+}
