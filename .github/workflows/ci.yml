@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -83,8 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -128,8 +128,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Download and verify public frozen model
@@ -162,8 +162,11 @@ jobs:
             --volume "$RUNNER_TEMP/docker-data:/data" \
             security-anomaly-ml:ci analyze /data/flows.csv \
             --output /data/incidents.jsonl
-          cmp "$RUNNER_TEMP/docker-data/incidents.jsonl" \
-            tests/fixtures/product-v01/expected-incidents.jsonl
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/docker-data:/data" \
+            --volume "$GITHUB_WORKSPACE/tests/fixtures/product-v01/expected-incidents.jsonl:/expected-incidents.jsonl:ro" \
+            --entrypoint python security-anomaly-ml:ci -c \
+            "from pathlib import Path; actual = Path('/data/incidents.jsonl').read_bytes(); expected = Path('/expected-incidents.jsonl').read_bytes(); assert actual == expected, 'Docker JSONL differs from golden'"
       - name: Verify runtime image excludes research inputs
         run: |
           docker run --rm --network none --entrypoint python security-anomaly-ml:ci -c \
