@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "security-anomaly-ml"
+version = "0.1.0"
+description = "Label-free CICFlowMeter network-flow triage with a frozen temporal detector"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = {file = "LICENSE"}
+authors = [{name = "Security Anomaly ML contributors"}]
+dependencies = [
+  "numpy==2.5.2",
+  "pandas==3.0.5",
+  "scikit-learn==1.9.0",
+  "joblib==1.5.3",
+  "duckdb==1.5.5",
+]
+
+[project.scripts]
+security-anomaly = "security_anomaly.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["security_anomaly", "security_anomaly.*"]
+
+[tool.setuptools.package-data]
+"security_anomaly.resources" = ["*.json"]
