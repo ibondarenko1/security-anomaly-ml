@@ -1,0 +1,7 @@
+# Exact model-deserialization and v0.1 inference runtime.
+# Python 3.13.x is required by the frozen context-rf-v2 manifest.
+numpy==2.5.2
+pandas==3.0.5
+scikit-learn==1.9.0
+joblib==1.5.3
+duckdb==1.5.5

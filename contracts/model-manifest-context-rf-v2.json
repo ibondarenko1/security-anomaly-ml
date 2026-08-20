@@ -1,0 +1,93 @@
+{
+  "schema_version": "model-bundle-manifest-v1",
+  "product_version": "0.1.0",
+  "model_version": "context-rf-v2",
+  "artifact": {
+    "filename": "context-rf-v2.joblib",
+    "sha256": "4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72",
+    "size_bytes": 4921240,
+    "distribution": "GitHub Release asset; intentionally excluded from Git history"
+  },
+  "serialization": {
+    "python_version": "3.13.7",
+    "python_major_minor": "3.13",
+    "required_package_versions": {
+      "scikit-learn": "1.9.0",
+      "numpy": "2.5.2",
+      "pandas": "3.0.5",
+      "duckdb": "1.5.5",
+      "joblib": "1.5.3"
+    },
+    "runtime_requirements_file": "requirements-runtime.txt"
+  },
+  "compatibility": {
+    "feature_contract": "cicflow-v2-128",
+    "feature_contract_sha256": "85b5c957dc689ccc311a25dcaa1f59c3c19dc2f112826c9dabe22cd221ec5ead",
+    "feature_builder_version": "causal-temporal-v2",
+    "model_feature_count": 128,
+    "incompatible_combinations_must_fail_closed": true
+  },
+  "model": {
+    "class": "sklearn.ensemble._forest.RandomForestClassifier",
+    "classes": [
+      0,
+      1
+    ],
+    "score_semantics": "predict_proba[:, 1] attack score; not calibrated real-world probability",
+    "frozen_parameters": {
+      "n_estimators": 300,
+      "max_depth": 24,
+      "min_samples_split": 5,
+      "min_samples_leaf": 2,
+      "max_features": 0.5,
+      "max_samples": 0.8,
+      "bootstrap": true,
+      "random_state": 42,
+      "class_weight": null,
+      "criterion": "gini"
+    }
+  },
+  "operational_policy": {
+    "flow_alert": {
+      "field": "attack_score",
+      "operator": ">=",
+      "threshold": 0.1
+    },
+    "incident_aggregation": {
+      "policy": "B",
+      "grouping_key": [
+        "src_ip",
+        "dst_ip",
+        "dst_port"
+      ],
+      "window_seconds": 300
+    },
+    "incident_promotion": {
+      "field": "max_attack_score",
+      "operator": ">=",
+      "threshold": 0.25
+    }
+  },
+  "provenance": {
+    "training_capture": "CIC-UNSW-NB15 / 2015-01-22",
+    "validation_capture": "CIC-UNSW-NB15 / 2015-02-17",
+    "locked_temporal_holdout": "CIC-UNSW-NB15 / 2015-02-18",
+    "locked_holdout_never_used_for_selection": true,
+    "post_holdout_tuning_performed": false,
+    "holdout_summary": {
+      "flow_recall": 0.983685623983777,
+      "flow_fpr": 0.021189620313723692,
+      "flow_pr_auc": 0.898914814296779,
+      "aggregated_incident_recall": 0.9999174031551995,
+      "promoted_incident_recall": 0.9993392252415958,
+      "promoted_incident_precision": 0.9346293857950585,
+      "verdict": "Acceptable but operationally noisy"
+    }
+  },
+  "redistribution": {
+    "repository_code_license": "Apache-2.0",
+    "dataset_included": false,
+    "dataset_terms": "UNSW-NB15 and CIC-UNSW-NB15 remain subject to their original publisher licensing and terms; no dataset rows are bundled.",
+    "artifact_notice": "The model is provided for research and evaluation without a production-readiness claim."
+  }
+}
