@@ -8,6 +8,7 @@ Open-source ML network-flow detector that turns CICFlowMeter-compatible traffic 
 [![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0)
 [![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](./LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22036212.svg)](https://doi.org/10.5281/zenodo.22036212)
 
 **v0.1.0 — usable research/evaluation release. Not production-ready.**
 
