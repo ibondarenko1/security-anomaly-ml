@@ -25,7 +25,17 @@ jobs:
           set -euo pipefail
 
           expected_tag_sha='bf7079291519128238f6540f8494b5c02728d59d'
-          actual_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0.1.0" --jq '.object.sha')"
+          tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0.1.0")"
+          actual_tag_sha="$(jq -r '.object.sha' <<<"$tag_object")"
+          actual_tag_type="$(jq -r '.object.type' <<<"$tag_object")"
+
+          while [ "$actual_tag_type" = 'tag' ]; do
+            tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${actual_tag_sha}")"
+            actual_tag_sha="$(jq -r '.object.sha' <<<"$tag_object")"
+            actual_tag_type="$(jq -r '.object.type' <<<"$tag_object")"
+          done
+
+          test "$actual_tag_type" = 'commit'
           test "$actual_tag_sha" = "$expected_tag_sha"
 
           mkdir -p release dist
