@@ -1,0 +1,53 @@
+name: Publish frozen release to PyPI
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  publish:
+    name: Publish v0.1.0 to PyPI
+    if: github.repository == 'ibondarenko1/security-anomaly-ml' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/security-anomaly-ml
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download and verify immutable v0.1.0 distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          expected_tag_sha='bf7079291519128238f6540f8494b5c02728d59d'
+          actual_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0.1.0" --jq '.object.sha')"
+          test "$actual_tag_sha" = "$expected_tag_sha"
+
+          mkdir -p release dist
+          gh release download v0.1.0 \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir release \
+            --pattern 'security_anomaly_ml-0.1.0-py3-none-any.whl' \
+            --pattern 'security_anomaly_ml-0.1.0.tar.gz' \
+            --pattern 'SHA256SUMS'
+
+          test -f release/security_anomaly_ml-0.1.0-py3-none-any.whl
+          test -f release/security_anomaly_ml-0.1.0.tar.gz
+          test -f release/SHA256SUMS
+
+          grep -F '  security_anomaly_ml-0.1.0-py3-none-any.whl' release/SHA256SUMS >/dev/null
+          grep -F '  security_anomaly_ml-0.1.0.tar.gz' release/SHA256SUMS >/dev/null
+          (cd release && sha256sum -c SHA256SUMS --ignore-missing)
+
+          cp release/security_anomaly_ml-0.1.0-py3-none-any.whl dist/
+          cp release/security_anomaly_ml-0.1.0.tar.gz dist/
+
+      - name: Publish exact v0.1.0 distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: dist/
