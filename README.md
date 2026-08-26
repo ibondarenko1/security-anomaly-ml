@@ -1,4 +1,4 @@
-.![Security Anomaly ML](./assets/security-anomaly-ml-banner.svg)
+![Security Anomaly ML](./assets/security-anomaly-ml-banner.svg)
 
 # Security Anomaly ML
 
