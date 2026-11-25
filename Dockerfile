@@ -19,13 +19,15 @@ FROM ${PYTHON_IMAGE} AS runtime
 
 ARG MODEL_SHA256=4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72
 ARG SOURCE_REVISION=unknown
+ARG PACKAGE_VERSION=0.2.0
 
 LABEL org.opencontainers.image.title="Security Anomaly ML" \
     org.opencontainers.image.description="Local CICFlowMeter and Zeek network-flow triage." \
     org.opencontainers.image.source="https://github.com/ibondarenko1/security-anomaly-ml" \
-    org.opencontainers.image.version="0.2.0.dev1" \
+    org.opencontainers.image.version="${PACKAGE_VERSION}" \
     org.opencontainers.image.revision="${SOURCE_REVISION}" \
-    org.opencontainers.image.licenses="Apache-2.0"
+    org.opencontainers.image.licenses="Apache-2.0" \
+    com.security-anomaly-ml.model.sha256="${MODEL_SHA256}"
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -38,8 +40,9 @@ RUN groupadd --gid 10001 anomaly \
     && install -d -o 10001 -g 10001 /data /opt/security-anomaly/models
 
 COPY --from=wheel-builder /wheels/ /tmp/wheels/
-RUN python -m pip install --no-index --find-links=/tmp/wheels security-anomaly-ml==0.2.0.dev1 \
+RUN python -m pip install --no-index --find-links=/tmp/wheels /tmp/wheels/security_anomaly_ml-*.whl \
     && python -m pip check \
+    && test "$(python -c 'import importlib.metadata; print(importlib.metadata.version("security-anomaly-ml"))')" = "${PACKAGE_VERSION}" \
     && rm -rf /tmp/wheels
 
 # The named build context must be supplied explicitly:

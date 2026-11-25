@@ -1,72 +1,204 @@
 name: Publish release image
 
 on:
+  release:
+    types:
+      - published
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing stable vMAJOR.MINOR.PATCH tag to verify"
+        required: true
+        type: string
+      publish:
+        description: "Publish after all checks pass"
+        required: true
+        default: false
+        type: boolean
 
-permissions:
-  contents: read
-  packages: write
+permissions: {}
+
+concurrency:
+  group: release-image-${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+  cancel-in-progress: false
 
 env:
   PYTHON_VERSION: "3.13.7"
   MODEL_RELEASE_TAG: model-context-rf-v2
   MODEL_SHA256: 4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72
-  IMAGE: ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
-  RELEASE_REVISION: bf7079291519128238f6540f8494b5c02728d59d
+  RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
 
 jobs:
+  preflight:
+    name: validate-release-input
+    if: github.repository == 'ibondarenko1/security-anomaly-ml'
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Reject non-product or ambiguous release references
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Manual release verification must be started from main" >&2
+            exit 1
+          fi
+          RELEASE_TAG="$RELEASE_TAG" python -c 'import os, re; tag = os.environ["RELEASE_TAG"]; assert re.fullmatch(r"v[0-9]+[.][0-9]+[.][0-9]+", tag), f"invalid stable release tag: {tag!r}"'
+
   publish:
     name: verify-and-publish-ghcr
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'ibondarenko1/security-anomaly-ml'
+    needs: preflight
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.RELEASE_REVISION }}
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
 
-      - name: Download and verify frozen model
+      - name: Verify the checked-out tag and derive the immutable image name
+        id: release
         run: |
+          set -euo pipefail
+          test -n "$RELEASE_TAG"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          fi
+          git merge-base --is-ancestor HEAD origin/main
+          python tools/validate_release.py --project-root . --tag "$RELEASE_TAG"
+          version="${RELEASE_TAG#v}"
+          revision="$(git rev-parse HEAD)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify the frozen model
+        run: |
+          set -euo pipefail
           python tools/fetch_frozen_model.py \
             --tag "$MODEL_RELEASE_TAG" \
             --destination "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
             --sha256 "$MODEL_SHA256"
 
-      - name: Build exact-commit image
+      - name: Build the image from the exact tag
         run: |
+          set -euo pipefail
           docker build \
             --build-context model="$RUNNER_TEMP/frozen-model" \
-            --build-arg SOURCE_REVISION="$RELEASE_REVISION" \
-            --tag "$IMAGE" .
+            --build-arg PACKAGE_VERSION="${{ steps.release.outputs.version }}" \
+            --build-arg SOURCE_REVISION="${{ steps.release.outputs.revision }}" \
+            --tag "${{ steps.release.outputs.image }}" .
+          docker image inspect "${{ steps.release.outputs.image }}" --format \
+            'size_bytes={{.Size}} image_id={{.Id}} version={{index .Config.Labels "org.opencontainers.image.version"}} revision={{index .Config.Labels "org.opencontainers.image.revision"}}'
 
-      - name: Run offline non-root golden regression
+      - name: Run offline non-root CICFlowMeter golden regression
         run: |
-          docker run --rm --network none "$IMAGE" version
-          docker run --rm --network none "$IMAGE" model-info
-          test "$(docker run --rm --network none --entrypoint id "$IMAGE" -u)" = "10001"
+          set -euo pipefail
+          image="${{ steps.release.outputs.image }}"
+          docker run --rm --network none "$image" version
+          docker run --rm --network none "$image" model-info
+          test "$(docker run --rm --network none --entrypoint id "$image" -u)" = "10001"
           mkdir -p "$RUNNER_TEMP/docker-data"
           cp tests/fixtures/product-v01/flows.csv "$RUNNER_TEMP/docker-data/flows.csv"
           chmod 0777 "$RUNNER_TEMP/docker-data"
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/docker-data:/data" \
-            "$IMAGE" validate /data/flows.csv
+            "$image" validate /data/flows.csv
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/docker-data:/data" \
-            "$IMAGE" analyze /data/flows.csv --output /data/incidents.jsonl
+            "$image" analyze /data/flows.csv --output /data/incidents.jsonl
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/docker-data:/data" \
             --volume "$GITHUB_WORKSPACE/tests/fixtures/product-v01/expected-incidents.jsonl:/expected-incidents.jsonl:ro" \
-            --entrypoint python "$IMAGE" -c \
+            --entrypoint python "$image" -c \
             "from pathlib import Path; actual = Path('/data/incidents.jsonl').read_bytes(); expected = Path('/expected-incidents.jsonl').read_bytes(); assert actual == expected, 'Docker JSONL differs from golden'"
 
-      - name: Publish immutable v0.1.0 tag
+      - name: Run the packaged offline Zeek H2 demonstration
+        run: |
+          set -euo pipefail
+          image="${{ steps.release.outputs.image }}"
+          mkdir -p "$RUNNER_TEMP/zeek-demo"
+          chmod 0777 "$RUNNER_TEMP/zeek-demo"
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/zeek-demo:/data" \
+            "$image" demo zeek --output-dir /data/demo
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/zeek-demo:/data" \
+            "$image" zeek-fit /data/demo/fit.jsonl --sensor edge --output /data/profile.json
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/zeek-demo:/data" \
+            "$image" zeek-score /data/demo/heldout.jsonl --sensor edge --profile /data/profile.json --output /data/findings.jsonl
+          export ZEEK_DEMO_DIR="$RUNNER_TEMP/zeek-demo"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          findings = Path(os.environ["ZEEK_DEMO_DIR"]) / "findings.jsonl"
+          rows = [json.loads(line) for line in findings.read_text().splitlines() if line.strip()]
+          uids = [item.get("uid") for row in rows for item in row.get("evidences", [])]
+          assert uids == ["H2"], uids
+          PY
+
+      - name: Log in to GHCR and protect an existing immutable tag
+        id: registry
+        if: github.event_name == 'release' || inputs.publish == true
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+          image="${{ steps.release.outputs.image }}"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
             --username "${{ github.actor }}" --password-stdin
-          docker push "$IMAGE"
-          docker buildx imagetools inspect "$IMAGE"
+          manifest_error="$RUNNER_TEMP/ghcr-manifest-error"
+          if docker manifest inspect "$image" > "$RUNNER_TEMP/ghcr-manifest.json" 2>"$manifest_error"; then
+            docker pull "$image"
+            remote_version="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')"
+            remote_revision="$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+            remote_model_sha="$(docker image inspect "$image" --format '{{index .Config.Labels "com.security-anomaly-ml.model.sha256"}}')"
+            test "$remote_version" = "${{ steps.release.outputs.version }}" || {
+              echo "GHCR tag $image exists with a different package version" >&2
+              exit 1
+            }
+            test "$remote_revision" = "${{ steps.release.outputs.revision }}" || {
+              echo "GHCR tag $image exists with a different source revision" >&2
+              exit 1
+            }
+            test "$remote_model_sha" = "$MODEL_SHA256" || {
+              echo "GHCR tag $image exists with a different model digest" >&2
+              exit 1
+            }
+            echo "publish_needed=false" >> "$GITHUB_OUTPUT"
+          elif grep -Eqi 'no such manifest|manifest unknown|manifest not found|name unknown' "$manifest_error"; then
+            echo "publish_needed=true" >> "$GITHUB_OUTPUT"
+          else
+            cat "$manifest_error" >&2
+            echo "Unable to determine whether the GHCR release tag exists" >&2
+            exit 1
+          fi
+
+      - name: Publish the verified immutable image tag
+        if: (github.event_name == 'release' || inputs.publish == true) && steps.registry.outputs.publish_needed == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          image="${{ steps.release.outputs.image }}"
+          docker push "$image"
+          docker buildx imagetools inspect "$image"
+
+      - name: Record a safe dry-run or idempotent retry
+        if: github.event_name == 'workflow_dispatch' && inputs.publish != true || steps.registry.outputs.publish_needed == 'false'
+        run: |
+          echo "No GHCR mutation was required for ${RELEASE_TAG}." >> "$GITHUB_STEP_SUMMARY"
