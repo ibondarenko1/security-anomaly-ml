@@ -53,19 +53,32 @@ def aggregate_policy_b_alerts(
     strictly greater gap starts a new one.
     """
 
+    return group_policy_b_flows(
+        (flow for flow in flows if flow.is_alert),
+        window_seconds=window_seconds,
+        promotion_threshold=promotion_threshold,
+    )
+
+
+def group_policy_b_flows(
+    flows: Iterable[FlowDetection],
+    *,
+    window_seconds: int,
+    promotion_threshold: float,
+) -> tuple[IncidentDetection, ...]:
+    """Group the supplied population with the frozen endpoint and gap policy."""
     if window_seconds <= 0:
         raise ValueError("Incident window must be positive")
     if promotion_threshold < 0 or promotion_threshold > 1:
         raise ValueError("Promotion threshold must be in [0, 1]")
 
-    alerts_by_key: dict[tuple[str, str, int], list[FlowDetection]] = defaultdict(list)
+    flows_by_key: dict[tuple[str, str, int], list[FlowDetection]] = defaultdict(list)
     for flow in flows:
-        if flow.is_alert:
-            alerts_by_key[(flow.src_ip, flow.dst_ip, flow.dst_port)].append(flow)
+        flows_by_key[(flow.src_ip, flow.dst_ip, flow.dst_port)].append(flow)
 
     drafts: list[IncidentDetection] = []
     maximum_gap = timedelta(seconds=window_seconds)
-    for members in alerts_by_key.values():
+    for members in flows_by_key.values():
         ordered = sorted(members, key=lambda flow: (flow.timestamp, flow.source_row_id))
         session: list[FlowDetection] = []
         previous: FlowDetection | None = None

@@ -187,13 +187,13 @@ def _command_model_info(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    from . import replay
+    from . import evaluation, periodic, replay
 
     parser = argparse.ArgumentParser(
         prog="security-anomaly",
         description=(
             "Analyze CICFlowMeter flows and Zeek connection logs locally, "
-            "replay captures, and export findings for SOC review."
+            "replay captures, compare incident-review queues, and export findings for SOC review."
         ),
         epilog=(
             "Example: security-anomaly analyze flows.csv --model context-rf-v2.joblib "
@@ -233,6 +233,8 @@ def build_parser() -> argparse.ArgumentParser:
     model_info.set_defaults(handler=_command_model_info)
     replay.register_parser(subparsers)
     zeek.register_parser(subparsers)
+    periodic.register_parser(subparsers)
+    evaluation.register_parser(subparsers)
     ocsf.register_parser(subparsers)
     sentinel.register_parser(subparsers)
     return parser

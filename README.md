@@ -4,6 +4,8 @@
 
 Local network-flow triage for SOC analysts. Replay CICFlowMeter rotations with a frozen Random Forest, or fit a sensor-specific baseline to Zeek connection logs. Both paths can produce OCSF Detection Findings with the evidence behind each alert.
 
+The source CLI also groups recurring outbound Zeek connections into reviewable cases. With separately labelled captures, `evaluate` measures how many distinct target episodes each detector surfaces at the same case budget.
+
 [![CI](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml)
 [![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0)
 [![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
@@ -29,10 +31,13 @@ The sample flags connection `H2`. Look up that UID in the held-out log and compa
 |---|---|
 | Analyze rotated CSVs, including late arrivals and restarts | [Replay guide](docs/REPLAY.md) |
 | Measure unusual Zeek connections against your own reference period | [Zeek profile and scoring](docs/ZEEK.md) |
+| Investigate recurring outbound traffic and compare detectors at a fixed review budget | [Periodic Zeek findings and episode evaluation](docs/EPISODE_EVALUATION.md) |
 | Inspect cross-network recall and analyst workload | [Frozen-model transfer test](docs/RF_TRANSFER.md) and [independent workload benchmark](docs/EXTERNAL_EVALUATION.md) |
 | Query findings in Microsoft Sentinel | [OCSF fields, request format, and KQL](examples/sentinel/README.md) |
 
 **Cross-network result.** On 32,056 scorable flows from four fixed ranges of CSE-CIC-IDS2018, the unchanged model detected 495 of 8,754 attack-labelled flows (5.65%) and alerted on 14,710 of 23,302 benign flows (63.13%). This workload supports local evaluation and calibration before analyst use. [Sampling protocol and comparison at a fixed alert budget](docs/RF_TRANSFER.md)
+
+**Outbound periodicity result.** On nine IoT-23 captures the opt-in rule emitted 22 findings, all labelled benign, and missed all three C&C episodes in the holdouts. The existing median/MAD profile recovered all three at a workload of 104 cases. [Operating thresholds, review-budget comparison and reproduction](docs/EPISODE_EVALUATION.md#public-iot-23-results)
 
 ## Run the published CICFlowMeter release
 
@@ -45,7 +50,7 @@ docker run --rm --network none \
   -c 'security-anomaly analyze /fixtures/flows.csv --output /tmp/incidents.jsonl && cat /tmp/incidents.jsonl'
 ```
 
-The current checkout identifies itself as `0.2.0.dev0`. The published v0.1.0 wheel and image provide the original batch CLI. The frozen model and `incident-v1` schema retain their original versions. [Docker and PowerShell examples](docs/DOCKER.md)
+The current checkout identifies itself as `0.2.0.dev1`. The published v0.1.0 wheel and image provide the original batch CLI. The frozen model and `incident-v1` schema retain their original versions. [Docker and PowerShell examples](docs/DOCKER.md)
 
 ## Example incident
 

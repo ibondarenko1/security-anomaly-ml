@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "security-anomaly-ml"
-version = "0.2.0.dev0"
+version = "0.2.0.dev1"
 description = "Local CICFlowMeter and Zeek network-flow triage with OCSF findings"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"

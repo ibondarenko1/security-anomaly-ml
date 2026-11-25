@@ -108,6 +108,25 @@ jobs:
           assert [r["Finding"]["evidences"][0]["uid"] for r in rows] == ["H2"]
           PY
 
+      - name: Compare a synthetic recurring update and a simulated callback using the installed CLI
+        working-directory: ${{ runner.temp }}
+        run: |
+          cli="$RUNNER_TEMP/security-anomaly-clean/bin/security-anomaly"
+          fixture="$GITHUB_WORKSPACE/tests/fixtures/periodic"
+          "$cli" zeek-periodic "$fixture/observed.jsonl" --reference "$fixture/reference.jsonl" \
+            --sensor edge-a --local-net 192.0.2.0/24 --output periodic.jsonl
+          "$cli" evaluate zeek "$fixture/observed.jsonl" --reference "$fixture/reference.jsonl" \
+            --sensor edge-a --local-net 192.0.2.0/24 --labels "$fixture/labels.jsonl" --budget 2 --output review.json
+          "$cli" sentinel-batch periodic.jsonl --output periodic-request.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("review.json").read_bytes())
+          op = result["operating_point"]["methods"]["rare_periodic"]
+          assert (op["selected_target_episodes"], op["selected_pure_benign_cases"]) == (1, 1)
+          assert len(json.loads(Path("periodic-request.json").read_bytes())) == 2
+          PY
+
   frozen-model-e2e:
     name: frozen-model-e2e
     runs-on: ubuntu-24.04
@@ -138,7 +157,7 @@ jobs:
             --model "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib"
           SECURITY_ANOMALY_E2E_MODEL="$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
             "$RUNNER_TEMP/security-anomaly-e2e/bin/python" -m pytest -q \
-            tests/test_product_e2e.py tests/test_product_replay.py
+            tests/test_product_e2e.py tests/test_product_replay.py tests/test_cic_evaluation.py
       - name: Verify repeated installed-CLI golden output
         run: |
           "$RUNNER_TEMP/security-anomaly-e2e/bin/security-anomaly" analyze \
