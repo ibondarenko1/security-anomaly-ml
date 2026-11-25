@@ -139,13 +139,13 @@ jobs:
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/zeek-demo:/data" \
             "$image" zeek-score /data/demo/heldout.jsonl --sensor edge --profile /data/profile.json --output /data/findings.jsonl
-          export ZEEK_DEMO_DIR="$RUNNER_TEMP/zeek-demo"
-          python - <<'PY'
+          docker run --rm -i --network none \
+            --volume "$RUNNER_TEMP/zeek-demo:/data:ro" \
+            --entrypoint python "$image" - <<'PY'
           import json
-          import os
           from pathlib import Path
 
-          findings = Path(os.environ["ZEEK_DEMO_DIR"]) / "findings.jsonl"
+          findings = Path("/data/findings.jsonl")
           rows = [json.loads(line) for line in findings.read_text().splitlines() if line.strip()]
           uids = [item.get("uid") for row in rows for item in row.get("evidences", [])]
           assert uids == ["H2"], uids
