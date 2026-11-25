@@ -90,6 +90,9 @@ are deliberately outside this bounded local module.
 
 ## Published-log smoke check
 
+The measurements and profile file digest below were recorded on source version `0.2.0.dev0`.
+The serialized profile includes the product version. A separate [episode-level comparison](EPISODE_EVALUATION.md) uses the publisher's labelled logs.
+
 `tools/check_zeek_capture.py` performs one bounded, offline replay against the
 54.4 KiB [`CTU-Honeypot-Capture-4-1/bro/conn.log`](https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-Honeypot-Capture-4-1/bro/conn.log)
 listed by the [official IoT-23 scenario index](https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/).

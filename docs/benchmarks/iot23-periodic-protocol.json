@@ -1,0 +1,191 @@
+{
+  "protocol": "iot23-periodic-outbound-v1",
+  "status": "frozen-before-attack-scoring",
+  "purpose": "Evaluate a rare-periodic-outbound Zeek detector and matched baselines on labelled IoT-23 logs with a fixed incident-review budget.",
+  "publisher": {
+    "name": "Stratosphere Laboratory Malware Capture Facility Project",
+    "dataset": "IoT-23 v1.0.0",
+    "dataset_page": "https://www.stratosphereips.org/datasets-iot23",
+    "citation": "Sebastian Garcia, Agustin Parmisano, and Maria Jose Erquiaga. IoT-23: A labeled dataset with malicious and benign IoT network traffic (2020).",
+    "label_definition": "The publisher's conn.log.labeled label and detailed-label fields are retained as provenance. C&C and HeartBeat detailed labels are target activity. Benign is benign activity. Other malicious labels are retained as other and do not count as target recovery.",
+    "doi": "https://doi.org/10.5281/zenodo.4743746"
+  },
+  "input_contract": {
+    "source": "Published Zeek conn.log.labeled text only. No PCAP, malware binary, executable, live traffic, or generated Zeek run is used.",
+    "max_source_bytes": 8388608,
+    "feature_jsonl": "One JSON object per Zeek record with labels removed. Missing counters remain absent. Rows are ordered by (ts, uid).",
+    "labels_jsonl": "One object per observed holdout UID with uid and label. label is one of benign, target, other. target rows include a non-empty episode identifier. Benign and other rows do not include episode.",
+    "identity": "The evaluator requires a unique non-empty Zeek uid and validates that labels cover exactly the observed input UIDs.",
+    "split": "Sort by timestamp then uid. Let cut=floor(0.70*N), then move cut left until no timestamp appears on both sides. Reference is the earlier side and input is the later side. The full capture is never shuffled.",
+    "local_networks": "Capture-specific RFC1918 networks in the table below. Only connections with source inside a configured network and destination outside every configured network are candidate outbound sessions. Unspecified, loopback, link-local, multicast, and limited-broadcast destinations are excluded.",
+    "sensor": "Capture ID, stable across reruns.",
+    "budget": 10,
+    "seed": "iot23-periodic-v1",
+    "episode_definition": "A target episode is a run of publisher-labelled target rows for one capture, source device, and publisher detailed-label family. A new episode starts after a gap greater than 3600 seconds between target row timestamps. This assignment uses labels and timestamp order only and is independent of detector grouping or alert thresholds. Episodes crossing the reference/holdout boundary are reported as warmup-contaminated.",
+    "controls": "Compare the rare-periodic rule, regularity alone, the existing median/MAD profile and seeded uniform selection. Features determine score availability, case grouping and ordering. Class labels and episode IDs supply the outcomes for each fixed selection.",
+    "episode_gap_seconds": 3600,
+    "publisher_format": "The detailed column is named detailed-label or det_label. Capture 34 uses separate tab fields. Other listed captures pack the last core field and both labels into a whitespace-separated tail. Both layouts have the same label and feature semantics."
+  },
+  "methods": {
+    "rare_periodic": "Group outbound flows by source IP, destination IP, destination port and protocol. Split after a gap strictly exceeding 1800 seconds. At least four distinct starts are needed for nonzero regularity. Rarity uses at least three outbound reference records for the origin. Rank by regularity times rarity. Operational alerts require regularity >= 0.80 and rarity >= 0.80.",
+    "periodicity_only": "Rank the same cases by regularity and alert at regularity >= 0.80.",
+    "zeek_mad": "Fit the existing sensor-local median/MAD profile only on the reference period. Rank by the largest complete-member deviation and alert at score >= 6.0. A case without a complete member has no MAD score.",
+    "random": "Order all cases in the common pool by descending SHA-256 digest of UTF-8 security-anomaly-evaluate-v1|{seed}|{case_id}."
+  },
+  "case_pool_and_metrics": {
+    "common_pool": "One outbound case pool is built before any label join. Cases without a numeric score from an available method are excluded from the common pool and reported in coverage. A case with a numeric score of zero remains eligible.",
+    "mad_availability": "The existing Zeek MAD method is available only when the reference profile exists and at least one case member has complete profile fields. Missing members are retained in case evidence and are never imputed.",
+    "ranking": "Each method selects min(10, common_pool_size) cases. Sort descending numeric score and break equal scores by case_id. The uniform control sorts descending raw SHA-256 digest bytes of UTF-8 security-anomaly-evaluate-v1|{seed}|{case_id}.",
+    "budget": "K is 10 per capture, capped at common pool size N. With T target cases in the pool the uniform expected target case count is K*T/N. For an episode present in m pool cases, its recovery probability is 1 - choose(N-m,K)/choose(N,K). Sum these probabilities for the expected distinct episodes.",
+    "episode_denominator": "Target episode recall uses every target episode in the observed holdout, including episodes whose cases do not enter the common pool. Episodes crossing the reference/holdout boundary are marked warmup-contaminated and remain visible in the denominator with their status.",
+    "operating_point": "Threshold-based rare_periodic results are reported separately over all outbound groups, with case coverage, target/benign/other counts, and null metrics when a denominator is zero. Fixed-budget recovery is a separate queue metric."
+  },
+  "scoring_order": [
+    "Verify the published object size and SHA-256.",
+    "Parse and sort feature rows. Keep publisher labels in a separate map.",
+    "Assign independent episode IDs across the whole capture and make the fixed chronological split.",
+    "Use reference-period features to fit the profile and calculate historical frequencies.",
+    "Group observations and score them using features alone. All available methods use the same outbound candidate population and fixed budget.",
+    "Match the queues and threshold decisions to the independent labels. Record coverage, newcomer and spillover episode counts and aggregate metrics."
+  ],
+  "scenarios": [
+    {
+      "id": "hue-benign-4",
+      "class": "benign",
+      "capture": "CTU-Honeypot-Capture-4-1",
+      "origin_device": "Philips Hue bridge",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-Honeypot-Capture-4-1/bro/conn.log.labeled",
+      "source_bytes": 61653,
+      "source_sha256": "aebe40ea0e03b120265a5c7bc140dd9b0d3fe2fce65559e84776b7dd5360e71e",
+      "origin_ip": "192.168.1.132",
+      "local_networks": [
+        "192.168.1.0/24"
+      ]
+    },
+    {
+      "id": "echo-benign-5",
+      "class": "benign",
+      "capture": "CTU-Honeypot-Capture-5-1",
+      "origin_device": "Amazon Echo Dot",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-Honeypot-Capture-5-1/bro/conn.log.labeled",
+      "source_bytes": 182147,
+      "source_sha256": "f36db06e7d6ba7364e932a5b003f75835e004b320d70019e8a2f0ba8685d9262",
+      "origin_ip": "192.168.2.3",
+      "local_networks": [
+        "192.168.2.0/24"
+      ]
+    },
+    {
+      "id": "somfy-benign-7",
+      "class": "benign",
+      "capture": "CTU-Honeypot-Capture-7-1 / Somfy-01",
+      "origin_device": "Somfy smart doorlock",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-Honeypot-Capture-7-1/Somfy-01/bro/conn.log.labeled",
+      "source_bytes": 18024,
+      "source_sha256": "fb37fb38393c48b064d3afd373b075ffe31063d4924a2df1c5d13fc490b830cc",
+      "origin_ip": null,
+      "local_networks": [
+        "192.168.0.0/16"
+      ],
+      "network_note": "The nested scenario supplies no stable device address in its published metadata. Use the private 192.168.0.0/16 range consistently."
+    },
+    {
+      "id": "hakai-target-8",
+      "class": "malware",
+      "capture": "CTU-IoT-Malware-Capture-8-1",
+      "origin_device": "RPi-02",
+      "malware": "Hakai",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-IoT-Malware-Capture-8-1/bro/conn.log.labeled",
+      "source_bytes": 1431000,
+      "source_sha256": "4877ca8f0f01902fbd18d28b7d06cb3d0be082355b7f2c8862c9deef1782eb8a",
+      "origin_ip": "192.168.100.113",
+      "local_networks": [
+        "192.168.100.0/24"
+      ]
+    },
+    {
+      "id": "torii-target-20",
+      "class": "malware",
+      "capture": "CTU-IoT-Malware-Capture-20-1",
+      "origin_device": "RPi-01",
+      "malware": "Torii",
+      "origin_ip": "192.168.100.103",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-IoT-Malware-Capture-20-1/bro/conn.log.labeled",
+      "source_bytes": 419604,
+      "source_sha256": "ef48ad72f65efd13d517223e61e4d877ba53a082ddb8159324b18d3f310d0711",
+      "local_networks": [
+        "192.168.100.0/24"
+      ]
+    },
+    {
+      "id": "torii-target-21",
+      "class": "malware",
+      "capture": "CTU-IoT-Malware-Capture-21-1",
+      "origin_device": "RPi-05",
+      "malware": "Torii",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-IoT-Malware-Capture-21-1/bro/conn.log.labeled",
+      "source_bytes": 428943,
+      "source_sha256": "b63db259aead078f50fc150aa97ace4d1f69576e1245334962759d978ce437eb",
+      "origin_ip": "192.168.100.113",
+      "local_networks": [
+        "192.168.100.0/24"
+      ]
+    },
+    {
+      "id": "mirai-target-34",
+      "class": "malware",
+      "capture": "CTU-IoT-Malware-Capture-34-1",
+      "origin_device": "RPi02",
+      "malware": "Mirai",
+      "origin_ip": "192.168.1.195",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-IoT-Malware-Capture-34-1/bro/conn.log.labeled",
+      "source_bytes": 2926718,
+      "source_sha256": "d69e49b2aae8c1bd33286936531658202dec47d989f0439bad3f8be180467a6e",
+      "local_networks": [
+        "192.168.1.0/24"
+      ]
+    },
+    {
+      "id": "trojan-target-42",
+      "class": "malware",
+      "capture": "CTU-IoT-Malware-Capture-42-1",
+      "origin_device": "RPi-04",
+      "malware": "Trojan",
+      "origin_ip": "192.168.1.197",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-IoT-Malware-Capture-42-1/bro/conn.log.labeled",
+      "source_bytes": 585829,
+      "source_sha256": "269fa1b22d9a37e159cf41b81a213a0032d21306f5d39b4c20cb0d211b04e8aa",
+      "local_networks": [
+        "192.168.1.0/24"
+      ]
+    },
+    {
+      "id": "mirai-target-44",
+      "class": "malware",
+      "capture": "CTU-IoT-Malware-Capture-44-1",
+      "origin_device": "RPi-06",
+      "malware": "Mirai",
+      "origin_ip": "192.168.1.199",
+      "source_url": "https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-IoT-Malware-Capture-44-1/bro/conn.log.labeled",
+      "source_bytes": 31179,
+      "source_sha256": "12cd99bcda78140dd5f31cf3d786642f150e42e0ebc3599190f35314e406f71f",
+      "local_networks": [
+        "192.168.1.0/24"
+      ]
+    }
+  ],
+  "limitations": [
+    "The publisher labels are analyst-created flow annotations. Episode boundaries are evaluation proxies, derived per source and detailed label family with a 3600-second gap.",
+    "The devices and traffic come from a controlled IoT environment. Results are conditional on these captures and the local network prefixes listed here.",
+    "The three benign captures have no specific software-update labels. The shipped synthetic fixture supplies known and new scheduled-update controls.",
+    "An episode that crosses the temporal split remains in overall recall and is reported separately from newly starting episodes."
+  ],
+  "reproduction": {
+    "prepare": "python tools/evaluate_iot23_episodes.py --capture all --output-dir artifacts/iot23-periodic --prepare",
+    "evaluate": "python tools/evaluate_iot23_episodes.py --capture all --output-dir artifacts/iot23-periodic --evaluate",
+    "single_capture": "python tools/evaluate_iot23_episodes.py --capture hakai-target-8 --output-dir artifacts/iot23-hakai --evaluate",
+    "raw_logs_committed": false,
+    "temporary_data": "--evaluate uses a temporary directory for intermediate feature, label and case evidence. Only aggregate.json is written to the requested output directory. --prepare retains the split inputs for independent inspection."
+  },
+  "scenario_selection": "Three benign IoT devices and six complete, bounded malware-scenario Zeek logs (8, 20, 21, 34, 42 and 44). Keep every listed capture, including windows containing no target label, no eligible outbound group or no scored MAD case. Selection, budgets and operating thresholds precede detector scoring."
+}
