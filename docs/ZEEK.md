@@ -29,6 +29,15 @@ set during fitting or explicitly overridden while scoring.  This is a
 transparent triage score, not a probability and not a verdict that traffic is
 malicious.
 
+The minimum robust scale is `1e-9`. If every reference connection has five
+response packets, a sixth packet has an absolute deviation of one packet and
+a scaled deviation of about a billion. The finding records the feature, its
+observed value, reference median, absolute delta, raw MAD when available,
+scale used and whether the floor applied. Read those values in the units of
+the original feature. Older profiles that stored only a floored scale cannot
+distinguish a zero MAD from a small positive MAD. The explanation marks that
+case as unknown. [Rank and inspect outbound cases](CLI.md#rank-an-unlabeled-zeek-capture)
+
 The profile is sensor-scoped.  `zeek-score` rejects a requested sensor that
 does not match the profile, preventing an unrelated sensor's baseline from
 being silently reused.
@@ -90,8 +99,7 @@ are deliberately outside this bounded local module.
 
 ## Published-log smoke check
 
-The measurements and profile file digest below were recorded on source version `0.2.0.dev0`.
-The serialized profile includes the product version. A separate [episode-level comparison](EPISODE_EVALUATION.md) uses the publisher's labelled logs.
+The measurements below were reproduced on version `0.2.0`. The serialized profile includes the product version, the raw feature MADs and their checksum. A separate experiment evaluates the publisher's labels. [Episode-level comparison](EPISODE_EVALUATION.md)
 
 `tools/check_zeek_capture.py` performs one bounded, offline replay against the
 54.4 KiB [`CTU-Honeypot-Capture-4-1/bro/conn.log`](https://mcfp.felk.cvut.cz/publicDatasets/IoT-23-Dataset/IndividualScenarios/CTU-Honeypot-Capture-4-1/bro/conn.log)
@@ -113,7 +121,7 @@ The run used the first 320 chronological records for fitting and the later
 `zeek-fit` accepted 320 complete rows.  `zeek-score` parsed 132, scored 131,
 and counted one incomplete row; it emitted 46 findings at threshold `6.0`.
 The profile SHA-256 was identical before and after scoring:
-`f2c7e8d7d4b4fcff7674638bee77c8432aeeda694b2cba505da6192b9f5e3656`.
+`81e32efb7c0dcceb353d0863e827d6f5c4cd6c4272185d312992dd2e7fd97808`.
 
 This is a parser/profile smoke check on one unlabeled published capture, not
 an accuracy, detection-rate, or generalization claim.  The TSV field meanings

@@ -2,21 +2,23 @@ cff-version: 1.2.0
 message: "If you use Security Anomaly ML in research, evaluation, or comparison work, please cite this software."
 title: "Security Anomaly ML"
 type: software
-version: 0.1.0
-date-released: 2026-08-20
-doi: "10.5281/zenodo.22036212"
+version: 0.2.0
+date-released: 2026-11-25
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.22036211"
+    description: "Concept DOI for all archived versions"
 authors:
   - family-names: Bondarenko
     given-names: Ievgen
     alias: Jack Bondarenko
 license: Apache-2.0
 repository-code: "https://github.com/ibondarenko1/security-anomaly-ml"
-url: "https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0"
+url: "https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.2.0"
 abstract: >-
-  Open-source machine-learning network-flow detector that converts
-  CICFlowMeter-compatible traffic into deterministic analyst-facing security
-  incidents using causal temporal features, a frozen model, incident
-  aggregation, and a versioned output contract.
+  Local network-flow triage for Zeek connection logs and CICFlowMeter exports.
+  The software ranks outbound cases for review, explains sensor-specific
+  anomalies, and evaluates detector recovery at a fixed review budget.
 keywords:
   - cybersecurity
   - machine learning
@@ -25,4 +27,5 @@ keywords:
   - intrusion detection
   - detection engineering
   - CICFlowMeter
+  - Zeek
   - security analytics

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "security-anomaly-ml"
-version = "0.2.0.dev1"
+version = "0.2.0"
 description = "Local CICFlowMeter and Zeek network-flow triage with OCSF findings"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
@@ -20,6 +20,12 @@ dependencies = [
   "jsonschema==4.25.1",
 ]
 
+[project.urls]
+Source = "https://github.com/ibondarenko1/security-anomaly-ml"
+Documentation = "https://github.com/ibondarenko1/security-anomaly-ml/blob/main/docs/CLI.md"
+Issues = "https://github.com/ibondarenko1/security-anomaly-ml/issues"
+Releases = "https://github.com/ibondarenko1/security-anomaly-ml/releases"
+
 [project.scripts]
 security-anomaly = "security_anomaly.cli:main"
 
@@ -32,4 +38,4 @@ where = ["src"]
 include = ["security_anomaly", "security_anomaly.*"]
 
 [tool.setuptools.package-data]
-"security_anomaly.resources" = ["*.json"]
+"security_anomaly.resources" = ["*.json", "zeek/*.jsonl"]

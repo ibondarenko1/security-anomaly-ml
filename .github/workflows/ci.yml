@@ -97,15 +97,20 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           cli="$RUNNER_TEMP/security-anomaly-clean/bin/security-anomaly"
-          fixtures="$GITHUB_WORKSPACE/tests/fixtures/zeek"
+          fixtures="$RUNNER_TEMP/installed-zeek-example"
+          "$cli" demo zeek --output-dir "$fixtures"
           "$cli" zeek-fit "$fixtures/fit.jsonl" --sensor edge --output profile.json
           "$cli" zeek-score "$fixtures/heldout.jsonl" --sensor edge --profile profile.json --output findings.jsonl
           "$cli" sentinel-batch findings.jsonl --output request.json
+          "$cli" review zeek "$fixtures/heldout.jsonl" --reference "$fixtures/fit.jsonl" \
+            --sensor edge --local-net 192.0.2.0/24 --budget 1 --output queue.jsonl
           python - <<'PY'
           import json
           from pathlib import Path
           rows = json.loads(Path("request.json").read_bytes())
           assert [r["Finding"]["evidences"][0]["uid"] for r in rows] == ["H2"]
+          item, = [json.loads(line) for line in Path("queue.jsonl").read_text().splitlines()]
+          assert item["rank"] == 1 and item["uids"] == ["H2"] and item["threshold_decision"]
           PY
 
       - name: Compare a synthetic recurring update and a simulated callback using the installed CLI
@@ -200,6 +205,13 @@ jobs:
         run: |
           docker run --rm --network none security-anomaly-ml:ci version
           docker run --rm --network none security-anomaly-ml:ci model-info
+          docker run --rm --network none --entrypoint sh security-anomaly-ml:ci -ec '
+            cd /tmp
+            security-anomaly demo zeek --output-dir demo
+            security-anomaly zeek-fit demo/fit.jsonl --sensor edge --output profile.json
+            security-anomaly zeek-score demo/heldout.jsonl --sensor edge --profile profile.json --output findings.jsonl
+            python -c "import json; from pathlib import Path; assert [json.loads(s)[\"evidences\"][0][\"uid\"] for s in Path(\"findings.jsonl\").read_text().splitlines()] == [\"H2\"]"
+          '
           test "$(docker run --rm --network none --entrypoint id security-anomaly-ml:ci -u)" != "0"
           mkdir -p "$RUNNER_TEMP/docker-data"
           cp tests/fixtures/product-v01/flows.csv "$RUNNER_TEMP/docker-data/flows.csv"

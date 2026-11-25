@@ -253,7 +253,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 316,
         "first": 1540469197.400159,
@@ -518,7 +518,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 961,
         "first": 1537522822.96553,
@@ -783,7 +783,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 91,
         "first": 1562159819.172195,
@@ -1048,7 +1048,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 1536,
         "first": 1533042911.474174,
@@ -1313,7 +1313,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 2230,
         "first": 1538478769.600293,
@@ -1578,7 +1578,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 2287,
         "first": 1538572953.710599,
@@ -1843,7 +1843,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 1753,
         "first": 1545403816.8709,
@@ -2108,7 +2108,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 3092,
         "first": 1547127282.523476,
@@ -2373,7 +2373,7 @@
           }
         }
       },
-      "product_version": "0.2.0.dev1",
+      "product_version": "0.2.0",
       "reference": {
         "benign_rows": 140,
         "first": 1547150788.860071,
