@@ -145,6 +145,28 @@ def _rank(cases: Sequence[ReviewCase], method: str, seed: str) -> list[ReviewCas
     return sorted(cases, key=lambda case: (-case.scores[method], case.case_id))
 
 
+def rank_cases(
+    cases: Sequence[ReviewCase],
+    method: str,
+    *,
+    seed: str = "security-anomaly-ml",
+) -> list[ReviewCase]:
+    """Return a deterministic ranking for one method's available case pool.
+
+    This is the shared ordering used by both labeled evaluation and the
+    unlabeled analyst queue.  Missing scores must be filtered by the caller so
+    the queue can report unavailable coverage instead of silently filling it.
+    """
+
+    if not isinstance(method, str) or not method:
+        raise InputContractError("method must be a non-empty string")
+    if not isinstance(seed, str) or not seed:
+        raise InputContractError("seed must be a non-empty string")
+    if any(case.scores.get(method) is None for case in cases):
+        raise InputContractError(f"method {method!r} has unavailable scores in the ranking pool")
+    return _rank(cases, method, seed)
+
+
 def _episode_hit_probability(n: int, k: int, episode_cases: int) -> float:
     """Probability that a uniform sample of k distinct cases contains the episode."""
     if k > n - episode_cases:
@@ -343,12 +365,28 @@ def operating_point(
     return {"schema_version": "review-operating-point-v1", "case_count": len(cases), "methods": result}
 
 
-def _profile_scores(cases: Sequence[Any], profile: zeek.ZeekProfile) -> dict[str, float | None]:
-    scores: dict[str, float | None] = {}
-    for case in cases:
-        values = [zeek._score_value(record, profile)[0] for record in case.records if record.complete]
-        scores[case.case_id] = max(values) if values else None
-    return scores
+def mad_witness(case: periodic.PeriodicCase, profile: zeek.ZeekProfile):
+    """Return the highest scoring complete record, breaking member ties by UID."""
+    scored = (
+        (record, *zeek._score_value(record, profile))
+        for record in case.records if record.complete
+    )
+    return max(scored, key=lambda item: (item[1], item[0].uid), default=None)
+
+
+def score_zeek_case(case: periodic.PeriodicCase, profile: zeek.ZeekProfile | None) -> ReviewCase:
+    witness = mad_witness(case, profile) if profile is not None else None
+    mad_score = witness[1] if witness is not None else None
+    return ReviewCase(
+        case_id=case.case_id,
+        uids=tuple(record.uid for record in case.records),
+        scores={"rare_periodic": case.score, "periodicity_only": case.periodicity, "zeek_mad": mad_score},
+        decisions={
+            "rare_periodic": case.flagged,
+            "periodicity_only": case.periodicity >= periodic.PERIODICITY_THRESHOLD,
+            "zeek_mad": profile is not None and mad_score is not None and mad_score >= profile.threshold,
+        },
+    )
 
 
 def _build_review_cases(reference: zeek.ZeekBatch, observed: zeek.ZeekBatch, local_nets: Sequence[str], sensor: str) -> tuple[list[ReviewCase], dict[str, Any]]:
@@ -360,35 +398,14 @@ def _build_review_cases(reference: zeek.ZeekBatch, observed: zeek.ZeekBatch, loc
             profile = zeek.fit_profile(reference, sensor=sensor)
         except zeek.ZeekProfileError as error:
             profile_unavailable_reason = str(error)
-    mad_scores = _profile_scores(parsed, profile) if profile is not None else {case.case_id: None for case in parsed}
-    cases = []
-    for case in parsed:
-        cases.append(
-            ReviewCase(
-                case_id=case.case_id,
-                uids=tuple(record.uid for record in case.records),
-                scores={
-                    "rare_periodic": float(case.score),
-                    "periodicity_only": float(case.periodicity),
-                    "zeek_mad": mad_scores[case.case_id],
-                },
-                decisions={
-                    "rare_periodic": bool(case.flagged),
-                    "periodicity_only": case.periodicity >= periodic.PERIODICITY_THRESHOLD,
-                    "zeek_mad": (
-                        profile is not None and mad_scores[case.case_id] is not None
-                        and mad_scores[case.case_id] >= profile.threshold
-                    ),
-                },
-            )
-        )
+    cases = [score_zeek_case(case, profile) for case in parsed]
     coverage = {
         "reference": reference.stats.__dict__,
         "observed": observed.stats.__dict__,
         **outbound_coverage,
         "cases": len(cases),
         "outbound_member_records": sum(len(case.uids) for case in cases),
-        "mad_scored_cases": sum(value is not None for value in mad_scores.values()),
+        "mad_scored_cases": sum(case.scores["zeek_mad"] is not None for case in cases),
         "profile_fingerprint": profile.fingerprint if profile is not None else None,
         "profile_unavailable_reason": profile_unavailable_reason,
     }
@@ -457,6 +474,7 @@ __all__ = [
     "ReviewCase",
     "compare_cases",
     "operating_point",
+    "rank_cases",
     "read_labels",
     "register_parser",
 ]

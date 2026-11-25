@@ -33,6 +33,8 @@ SCHEMA_VERSION = "zeek-profile-v1"
 DETECTOR_NAME = "zeek-profile"
 DEFAULT_THRESHOLD = 6.0
 MIN_DEFAULT_RECORDS = 3
+MAD_SCALE_FACTOR = 1.4826
+MAD_SCALE_FLOOR = 1e-9
 
 # These are deliberately Zeek-native fields.  In particular, this list is
 # not a projection of the CICFlowMeter feature contract.
@@ -160,6 +162,11 @@ class ZeekProfile:
     scale: Mapping[str, float]
     fit_records: int
     threshold: float
+    # Raw MAD values are retained for operator-facing explanations.  ``None``
+    # denotes a profile written before this optional field was introduced.
+    # The fitted score and profile fingerprint continue to use ``scale`` so
+    # old profile files remain valid and produce identical scores.
+    mad: Mapping[str, float] | None = None
 
     @property
     def fingerprint(self) -> str:
@@ -183,8 +190,16 @@ class ZeekProfile:
         ).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
 
+    @property
+    def mad_fingerprint(self) -> str | None:
+        if self.mad is None:
+            return None
+        encoded = json.dumps([self.mad[name] for name in self.feature_names], allow_nan=False,
+                             separators=(",", ":")).encode("ascii")
+        return hashlib.sha256(encoded).hexdigest()
+
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "product_version": self.product_version,
             "detector": DETECTOR_NAME,
@@ -197,10 +212,16 @@ class ZeekProfile:
             "profile_fingerprint": self.fingerprint,
             "algorithm": {
                 "name": "robust-median-mad",
-                "score": "max(abs(value - median) / (1.4826 * MAD))",
+                "score": "max(abs(value - median) / max(1.4826 * MAD, 1e-9))",
                 "imputation": "none",
             },
         }
+        if self.mad is not None:
+            payload["mad"] = {
+                name: self.mad[name] for name in self.feature_names
+            }
+            payload["mad_sha256"] = self.mad_fingerprint
+        return payload
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> ZeekProfile:
@@ -217,10 +238,24 @@ class ZeekProfile:
         try:
             center = _finite_mapping(payload.get("center"), "center", positive=False)
             scale = _finite_mapping(payload.get("scale"), "scale", positive=True)
+            mad_value = payload.get("mad")
+            mad = (
+                None
+                if mad_value is None
+                else _finite_mapping(mad_value, "mad", positive=False)
+            )
         except ZeekInputError as error:
             raise ZeekProfileError(str(error)) from error
         if tuple(center) != PROFILE_FEATURES or tuple(scale) != PROFILE_FEATURES:
             raise ZeekProfileError("profile feature mappings are incomplete or reordered")
+        if mad is not None and tuple(mad) != PROFILE_FEATURES:
+            raise ZeekProfileError("profile mad mapping is incomplete or reordered")
+        if mad is not None and any(value < 0 for value in mad.values()):
+            raise ZeekProfileError("profile mad values must be non-negative")
+        if mad is not None and any(
+            scale[name] != max(MAD_SCALE_FACTOR * mad[name], MAD_SCALE_FLOOR) for name in PROFILE_FEATURES
+        ):
+            raise ZeekProfileError("profile MAD is inconsistent with the stored robust scale")
         fit_records = payload.get("fit_records")
         if isinstance(fit_records, bool) or not isinstance(fit_records, int) or fit_records < 1:
             raise ZeekProfileError("fit_records must be a positive integer")
@@ -244,9 +279,12 @@ class ZeekProfile:
             scale=scale,
             fit_records=fit_records,
             threshold=threshold,
+            mad=mad,
         )
         if payload.get("profile_fingerprint") != profile.fingerprint:
             raise ZeekProfileError("profile fingerprint does not match its contents")
+        if payload.get("mad_sha256") != profile.mad_fingerprint:
+            raise ZeekProfileError("profile MAD fingerprint does not match its contents")
         return profile
 
 
@@ -469,16 +507,18 @@ def fit_profile(
             f"need at least {min_records} complete Zeek records to fit; got {len(complete)}"
         )
     center: dict[str, float] = {}
+    mad_values: dict[str, float] = {}
     scale: dict[str, float] = {}
     for name in PROFILE_FEATURES:
         values = [record.features[name] for record in complete]
         median = _median(values)
-        mad = _median([abs(value - median) for value in values])
+        raw_mad = _median([abs(value - median) for value in values])
         # A zero MAD is meaningful for a stable sensor.  Keep a small positive
         # denominator so a departure from a constant baseline is visible,
         # without inventing a replacement value for the measured field.
         center[name] = median
-        scale[name] = max(1.4826 * mad, 1e-9)
+        mad_values[name] = raw_mad
+        scale[name] = max(MAD_SCALE_FACTOR * raw_mad, MAD_SCALE_FLOOR)
     return ZeekProfile(
         schema_version=SCHEMA_VERSION,
         product_version=__version__,
@@ -488,6 +528,7 @@ def fit_profile(
         scale=scale,
         fit_records=len(complete),
         threshold=threshold,
+        mad=mad_values,
     )
 
 
@@ -517,6 +558,118 @@ def _score_value(record: ZeekRecord, profile: ZeekProfile) -> tuple[float, dict[
     return max(deviations.values()), deviations
 
 
+def _mad_explanation_values(
+    profile: ZeekProfile, name: str
+) -> tuple[float | None, float | None, bool, str]:
+    """Return raw MAD, pre-floor scale, floor flag and provenance status.
+
+    New profiles persist the raw MAD so an exactly constant feature can be
+    distinguished from a feature whose non-zero MAD is smaller than the
+    numerical denominator floor.  Older profile files contain only the
+    already-floored scale.  Their non-floor values can be reconstructed, while
+    a floor-sized value is reported as unknown instead of being mislabelled.
+    """
+
+    if profile.mad is not None and name in profile.mad:
+        raw_mad = float(profile.mad[name])
+        raw_scale = MAD_SCALE_FACTOR * raw_mad
+        return raw_mad, raw_scale, raw_scale < MAD_SCALE_FLOOR, (
+            "zero"
+            if raw_mad == 0.0
+            else "tiny_nonzero"
+            if raw_scale < MAD_SCALE_FLOOR
+            else "nonzero"
+        )
+    profile_scale = float(profile.scale[name])
+    if profile_scale > MAD_SCALE_FLOOR:
+        return (
+            profile_scale / MAD_SCALE_FACTOR,
+            profile_scale,
+            False,
+            "derived_from_legacy_scale",
+        )
+    return None, None, True, "unknown_legacy_floor"
+
+
+def explain_score(
+    record: ZeekRecord,
+    profile: ZeekProfile,
+    *,
+    score: float | None = None,
+    deviations: Mapping[str, float] | None = None,
+) -> tuple[dict[str, Any], ...]:
+    """Explain the strongest robust-deviation dimensions for one record.
+
+    The returned tuple contains every feature tied for the maximum score in
+    profile order.  It is intentionally independent of the alert threshold so
+    queue consumers can use the same witness before deciding whether to emit a
+    finding.  ``score`` and ``deviations`` may be supplied by a caller that
+    already computed them, avoiding a second calculation while preserving the
+    exact score values.
+    """
+
+    if not record.complete:
+        raise ZeekInputError("cannot explain an incomplete Zeek record")
+    if deviations is None:
+        calculated_score, calculated_deviations = _score_value(record, profile)
+        deviations = calculated_deviations
+    else:
+        missing = set(profile.feature_names) - set(deviations)
+        if missing:
+            raise ZeekInputError(
+                f"deviations are missing profile features: {', '.join(sorted(missing))}"
+            )
+        calculated_score = max(float(deviations[name]) for name in profile.feature_names)
+    effective_score = calculated_score if score is None else float(score)
+    strongest = [
+        name
+        for name in profile.feature_names
+        if float(deviations[name]) == calculated_score
+    ]
+    explanations: list[dict[str, Any]] = []
+    for name in strongest:
+        observed = float(record.features[name])
+        reference_median = float(profile.center[name])
+        absolute_delta = abs(observed - reference_median)
+        reference_mad, scale_before_floor, floor_applied, mad_status = _mad_explanation_values(
+            profile, name
+        )
+        floor_note = (
+            f", floor {MAD_SCALE_FLOOR:g} applied"
+            if floor_applied
+            else ""
+        )
+        mad_note = (
+            "unknown (legacy profile at floor)"
+            if reference_mad is None
+            else f"{reference_mad:g} ({mad_status})"
+        )
+        reason = (
+            f"{name}: observed {observed:g} vs reference median "
+            f"{reference_median:g}, absolute delta {absolute_delta:g}, "
+            f"reference MAD {mad_note}, robust scale {profile.scale[name]:g}"
+            f"{floor_note}, deviation {float(deviations[name]):.6g}"
+        )
+        explanations.append(
+            {
+                "feature": name,
+                "observed": observed,
+                "reference_median": reference_median,
+                "absolute_delta": absolute_delta,
+                "reference_mad": reference_mad,
+                "mad_status": mad_status,
+                "robust_scale": float(profile.scale[name]),
+                "scale_before_floor": scale_before_floor,
+                "scale_floor": MAD_SCALE_FLOOR,
+                "scale_floor_applied": floor_applied,
+                "deviation": float(deviations[name]),
+                "score": effective_score,
+                "reason": reason,
+            }
+        )
+    return tuple(explanations)
+
+
 def _finding_for_record(
     record: ZeekRecord,
     profile: ZeekProfile,
@@ -528,6 +681,12 @@ def _finding_for_record(
     anomalous_features = [
         name for name in profile.feature_names if deviations[name] >= threshold
     ]
+    score_explanation = explain_score(
+        record,
+        profile,
+        score=score,
+        deviations=deviations,
+    )
     evidence = {
         "schema_version": SCHEMA_VERSION,
         "sensor": profile.sensor,
@@ -545,6 +704,7 @@ def _finding_for_record(
         "score": score,
         "threshold": threshold,
         "anomalous_features": anomalous_features,
+        "score_explanation": list(score_explanation),
         "imputation": "none",
     }
     # The shared builder scopes its stable fingerprint by sensor.  Keep the
@@ -722,6 +882,8 @@ def register_parser(subparsers: Any) -> None:
 __all__ = [
     "DEFAULT_THRESHOLD",
     "DETECTOR_NAME",
+    "MAD_SCALE_FACTOR",
+    "MAD_SCALE_FLOOR",
     "MIN_DEFAULT_RECORDS",
     "PROFILE_FEATURES",
     "SCHEMA_VERSION",
@@ -735,6 +897,7 @@ __all__ = [
     "ZeekRecord",
     "ZeekScoreResult",
     "fit_profile",
+    "explain_score",
     "load_profile",
     "read_zeek_jsonl",
     "register_parser",

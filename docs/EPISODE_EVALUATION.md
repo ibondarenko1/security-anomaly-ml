@@ -81,4 +81,4 @@ From the source checkout with Python 3.13 and the package installed, run the com
 python tools/evaluate_iot23_episodes.py --capture all --output-dir artifacts/iot23-periodic --evaluate
 ```
 
-Two independent runs produced SHA-256 `578f968e4198582513a468cb641d57adb0ccc0e7384f7ed04a40d3036d7d20a5`. The on-demand GitHub Actions job compares a fresh run with the committed report byte for byte. [IoT-23 reproduction workflow](../.github/workflows/iot23-evaluation.yml)
+The 0.2.0 aggregate has SHA-256 `7b88be0aa036f272305492c1d363ec51239d77ac1bdcc2ed2d1377b24eb70c47`. The original development aggregate had SHA-256 `578f968e4198582513a468cb641d57adb0ccc0e7384f7ed04a40d3036d7d20a5`. Across all nine captures the only byte differences are the nine product-version strings. The reproduction job compares a fresh aggregate with the committed report byte for byte. [Original aggregate](https://github.com/ibondarenko1/security-anomaly-ml/blob/c30a7037e2f939770bf47fe455146e264a687635/docs/benchmarks/iot23-periodic-results.json) · [Reproduction workflow](../.github/workflows/iot23-evaluation.yml)

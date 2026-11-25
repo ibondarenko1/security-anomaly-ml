@@ -22,7 +22,9 @@ from src.security_anomaly.model_bundle import (
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = ROOT / "contracts" / "feature-contract-cicflow-v2-128.json"
 FROZEN_MANIFEST_PATH = ROOT / "contracts" / "model-manifest-context-rf-v2.json"
-FROZEN_MODEL_PATH = ROOT / "models" / "v2_context_random_forest.joblib"
+FROZEN_MODEL_PATH = ROOT / "models" / "context-rf-v2.joblib"
+if not FROZEN_MODEL_PATH.is_file():
+    FROZEN_MODEL_PATH = ROOT / "models" / "v2_context_random_forest.joblib"
 
 
 class FakeProbabilityModel:

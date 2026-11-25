@@ -1,0 +1,31 @@
+{
+  "dataset": "UWF-ZeekData24",
+  "publisher": "University of West Florida",
+  "index": "https://datasets.uwf.edu/data/UWF-ZeekData24/csv/",
+  "rows_per_file": 20000,
+  "reference_percent": 70,
+  "comparison_prefix": "143.88.0.0/16",
+  "sources": [
+    {
+      "id": "benign",
+      "label": "benign",
+      "url": "https://datasets.uwf.edu/data/UWF-ZeekData24/csv/Benign/part-00000-b039213f-1208-4f1b-b71d-5e8e3a4a2939-c000.csv",
+      "bytes": 10163424,
+      "sha256": "272677c8c7bbe7ab57b040f63ed8bbf92d0b5716adb05444258274eed000ab3f"
+    },
+    {
+      "id": "credential_access",
+      "label": "target",
+      "url": "https://datasets.uwf.edu/data/UWF-ZeekData24/csv/Credential_Access/part-00000-912fdc44-5727-4d42-8fd6-a0e206ba29f8-c000.csv",
+      "bytes": 10794836,
+      "sha256": "6448eeebbb5dfaf88bb45f81a2fa8fd3b2a3e635090da2e50b0177bd71430424"
+    },
+    {
+      "id": "reconnaissance",
+      "label": "target",
+      "url": "https://datasets.uwf.edu/data/UWF-ZeekData24/csv/Reconnaissance/part-00000-49ed1cc6-3205-4c76-8e28-4da9abf78363-c000.csv",
+      "bytes": 626614,
+      "sha256": "13bf1c7fe9364a91a18d858683fee999baf6567ca65e2077829df089107ff7b0"
+    }
+  ]
+}

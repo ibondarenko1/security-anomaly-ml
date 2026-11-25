@@ -187,7 +187,7 @@ def _command_model_info(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    from . import evaluation, periodic, replay
+    from . import demo, evaluation, periodic, replay, review
 
     parser = argparse.ArgumentParser(
         prog="security-anomaly",
@@ -235,6 +235,8 @@ def build_parser() -> argparse.ArgumentParser:
     zeek.register_parser(subparsers)
     periodic.register_parser(subparsers)
     evaluation.register_parser(subparsers)
+    review.register_parser(subparsers)
+    demo.register_parser(subparsers)
     ocsf.register_parser(subparsers)
     sentinel.register_parser(subparsers)
     return parser

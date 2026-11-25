@@ -19,7 +19,8 @@ Builds wheel and sdist, installs the wheel into a separate clean environment, ch
 - `security-anomaly --help`;
 - `security-anomaly version`;
 - label-free validation of the synthetic fixture;
-- resources resolve from installed `site-packages`;
+- contracts and the two Zeek demo logs resolve from the installed wheel;
+- the synthetic H2 connection produces one finding, one Sentinel row and the top review case;
 - `pip check`.
 
 ### frozen-model-e2e
@@ -53,6 +54,6 @@ Research reproduction tests that require non-redistributed datasets may remain s
 
 ## Release image publication
 
-The manual `Publish release image` workflow is restricted to `main` and has the repository's only `packages: write` permission. It downloads and verifies the public frozen model, builds the image with the exact workflow commit in the OCI revision label, runs the complete offline non-root synthetic golden regression, and only then pushes the immutable `0.1.0` tag to GHCR. It does not publish `latest`.
+The release workflows bind a stable Git tag to the distribution version and OCI revision. The wheel and image each run the bundled Zeek example. The image also runs the offline frozen-model regression as UID 10001. Checksums identify the Python distributions and the image digest identifies the container. [Release procedure](DOCKER.md)
 
 This CI demonstrates reproducibility and contract stability; it does not establish production readiness or production performance.

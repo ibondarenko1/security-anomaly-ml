@@ -276,11 +276,11 @@ def analyze_capture(
     return cases, coverage
 
 
-def _finding(case: PeriodicCase, sensor: str) -> dict[str, Any]:
+def case_evidence(case: PeriodicCase) -> dict[str, Any]:
     records = case.records
     first_seen = records[0].timestamp.astimezone(UTC)
     last_seen = max(record.end_time.astimezone(UTC) for record in records)
-    evidence = {
+    return {
         "schema_version": SCHEMA_VERSION,
         "detector": DETECTOR_NAME,
         "algorithm": "periodicity * destination-rarity",
@@ -304,6 +304,11 @@ def _finding(case: PeriodicCase, sensor: str) -> dict[str, Any]:
         "observed_uids": [record.uid for record in records],
         "source_ports": sorted({record.src_port for record in records}),
     }
+
+
+def _finding(case: PeriodicCase, sensor: str) -> dict[str, Any]:
+    first_seen = case.records[0].timestamp.astimezone(UTC)
+    last_seen = max(record.end_time for record in case.records).astimezone(UTC)
     return detection_finding(
         sensor=sensor,
         observation_id=case.case_id,
@@ -315,7 +320,7 @@ def _finding(case: PeriodicCase, sensor: str) -> dict[str, Any]:
         detector=DETECTOR_NAME,
         detector_version=DETECTOR_VERSION,
         title="Periodic outbound connection to an uncommon destination",
-        evidence=evidence,
+        evidence=case_evidence(case),
         product_version=__version__,
         group_key=[SCHEMA_VERSION, sensor, case.case_id],
     )

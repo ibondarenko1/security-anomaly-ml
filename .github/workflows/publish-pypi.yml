@@ -1,63 +1,201 @@
-name: Publish frozen release to PyPI
+name: Publish release to PyPI
 
 on:
+  release:
+    types:
+      - published
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing stable vMAJOR.MINOR.PATCH tag to verify"
+        required: true
+        type: string
+      publish:
+        description: "Publish after all checks pass"
+        required: true
+        default: false
+        type: boolean
 
 permissions: {}
 
+concurrency:
+  group: release-pypi-${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.13.7"
+  RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+
 jobs:
+  preflight:
+    name: validate-release-input
+    if: github.repository == 'ibondarenko1/security-anomaly-ml'
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Reject non-product or ambiguous release references
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Manual release verification must be started from main" >&2
+            exit 1
+          fi
+          RELEASE_TAG="$RELEASE_TAG" python -c 'import os, re; tag = os.environ["RELEASE_TAG"]; assert re.fullmatch(r"v[0-9]+[.][0-9]+[.][0-9]+", tag), f"invalid stable release tag: {tag!r}"'
+
   publish:
-    name: Publish v0.1.0 to PyPI
-    if: github.repository == 'ibondarenko1/security-anomaly-ml' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    name: verify-and-publish-pypi
+    if: github.repository == 'ibondarenko1/security-anomaly-ml'
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     environment:
       name: pypi
       url: https://pypi.org/p/security-anomaly-ml
     permissions:
       contents: read
       id-token: write
-
     steps:
-      - name: Download and verify immutable v0.1.0 distributions
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Verify the checked-out tag is stable and owns the package version
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_TAG"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$(git rev-parse HEAD)"
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          fi
+          git merge-base --is-ancestor HEAD origin/main
+          python tools/validate_release.py --project-root . --tag "$RELEASE_TAG"
+
+      - name: Download and verify exact GitHub Release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          expected_tag_sha='bf7079291519128238f6540f8494b5c02728d59d'
-          tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/v0.1.0")"
-          actual_tag_sha="$(jq -r '.object.sha' <<<"$tag_object")"
-          actual_tag_type="$(jq -r '.object.type' <<<"$tag_object")"
-
-          while [ "$actual_tag_type" = 'tag' ]; do
-            tag_object="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${actual_tag_sha}")"
-            actual_tag_sha="$(jq -r '.object.sha' <<<"$tag_object")"
-            actual_tag_type="$(jq -r '.object.type' <<<"$tag_object")"
-          done
-
-          test "$actual_tag_type" = 'commit'
-          test "$actual_tag_sha" = "$expected_tag_sha"
-
-          mkdir -p release dist
-          gh release download v0.1.0 \
+          rm -rf dist "$RUNNER_TEMP/security-anomaly-release-assets"
+          mkdir -p dist "$RUNNER_TEMP/security-anomaly-release-assets"
+          gh release download "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --dir release \
-            --pattern 'security_anomaly_ml-0.1.0-py3-none-any.whl' \
-            --pattern 'security_anomaly_ml-0.1.0.tar.gz' \
+            --dir "$RUNNER_TEMP/security-anomaly-release-assets" \
+            --pattern 'security_anomaly_ml-*.whl' \
+            --pattern 'security_anomaly_ml-*.tar.gz' \
             --pattern 'SHA256SUMS'
+          test -f "$RUNNER_TEMP/security-anomaly-release-assets/SHA256SUMS"
+          cp "$RUNNER_TEMP/security-anomaly-release-assets"/*.whl dist/
+          cp "$RUNNER_TEMP/security-anomaly-release-assets"/*.tar.gz dist/
+          test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 2
+          cp "$RUNNER_TEMP/security-anomaly-release-assets/SHA256SUMS" "$RUNNER_TEMP/SHA256SUMS"
+          (cd dist && sha256sum -c "$RUNNER_TEMP/SHA256SUMS")
+          python tools/validate_release.py \
+            --project-root . \
+            --tag "$RELEASE_TAG" \
+            --dist-dir dist
+          cmp "$RUNNER_TEMP/SHA256SUMS" dist/SHA256SUMS
+          rm dist/SHA256SUMS
+          cat "$RUNNER_TEMP/SHA256SUMS" >> "$GITHUB_STEP_SUMMARY"
 
-          test -f release/security_anomaly_ml-0.1.0-py3-none-any.whl
-          test -f release/security_anomaly_ml-0.1.0.tar.gz
-          test -f release/SHA256SUMS
+      - name: Install the wheel in an isolated environment
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/security-anomaly-release"
+          "$RUNNER_TEMP/security-anomaly-release/bin/python" -m pip install \
+            "$GITHUB_WORKSPACE"/dist/*.whl
+          "$RUNNER_TEMP/security-anomaly-release/bin/python" -m pip check
+          "$RUNNER_TEMP/security-anomaly-release/bin/security-anomaly" version
 
-          grep -F '  security_anomaly_ml-0.1.0-py3-none-any.whl' release/SHA256SUMS >/dev/null
-          grep -F '  security_anomaly_ml-0.1.0.tar.gz' release/SHA256SUMS >/dev/null
-          (cd release && sha256sum -c SHA256SUMS --ignore-missing)
+      - name: Run the packaged offline Zeek H2 demonstration
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          cli="$RUNNER_TEMP/security-anomaly-release/bin/security-anomaly"
+          demo="$RUNNER_TEMP/security-anomaly-zeek-demo"
+          "$cli" demo zeek --output-dir "$demo"
+          "$cli" zeek-fit "$demo/fit.jsonl" --sensor edge --output profile.json
+          "$cli" zeek-score "$demo/heldout.jsonl" --sensor edge --profile profile.json --output findings.jsonl
+          python - <<'PY'
+          import json
+          from pathlib import Path
 
-          cp release/security_anomaly_ml-0.1.0-py3-none-any.whl dist/
-          cp release/security_anomaly_ml-0.1.0.tar.gz dist/
+          rows = [json.loads(line) for line in Path("findings.jsonl").read_text().splitlines() if line.strip()]
+          uids = [item.get("uid") for row in rows for item in row.get("evidences", [])]
+          assert uids == ["H2"], uids
+          PY
 
-      - name: Publish exact v0.1.0 distributions to PyPI
+      - name: Verify the existing PyPI version before an idempotent retry
+        id: pypi
+        if: github.event_name == 'release' || inputs.publish == true
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          python - "$version" <<'PY'
+          import hashlib
+          import json
+          import sys
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          version = sys.argv[1]
+          request = urllib.request.Request(
+              "https://pypi.org/pypi/security-anomaly-ml/json",
+              headers={"User-Agent": "security-anomaly-ml-release-check"},
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=20) as handle:
+                  payload = json.load(handle)
+          except urllib.error.HTTPError as error:
+              if error.code == 404:
+                  payload = {"releases": {}}
+              else:
+                  raise
+          files = {
+              item["filename"]: item.get("digests", {}).get("sha256")
+              for item in payload.get("releases", {}).get(version, [])
+          }
+          expected = {
+              path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in Path("dist").glob("*")
+              if path.suffix == ".whl" or path.name.endswith(".tar.gz")
+          }
+          if not files:
+              publish_needed = True
+          elif set(files) <= set(expected) and all(
+              files[name] == expected[name] for name in files
+          ):
+              for name in files:
+                  Path("dist", name).unlink()
+              publish_needed = bool(set(expected) - set(files))
+              if not publish_needed:
+                  print(f"PyPI already contains the exact {version} assets")
+          else:
+              raise SystemExit(
+                  f"PyPI already has {version} with different or incomplete hashes: {files}"
+              )
+          Path("pypi-publish-needed").write_text(
+              "true\n" if publish_needed else "false\n"
+          )
+          PY
+          echo "publish_needed=$(tr -d '\n' < pypi-publish-needed)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish exact distributions with trusted publishing
+        if: (github.event_name == 'release' || inputs.publish == true) && steps.pypi.outputs.publish_needed == 'true'
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
         with:
           packages-dir: dist/
+
+      - name: Record a safe dry-run or idempotent retry
+        if: github.event_name == 'workflow_dispatch' && inputs.publish != true || steps.pypi.outputs.publish_needed == 'false'
+        run: |
+          echo "No PyPI mutation was required for ${RELEASE_TAG}." >> "$GITHUB_STEP_SUMMARY"
