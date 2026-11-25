@@ -38,6 +38,11 @@ the original feature. Older profiles that stored only a floored scale cannot
 distinguish a zero MAD from a small positive MAD. The explanation marks that
 case as unknown. [Rank and inspect outbound cases](CLI.md#rank-an-unlabeled-zeek-capture)
 
+A separate data check examined whether three UWF-ZeekData24 partitions could
+test a different minimum scale. All 12,391 complete connections in the later
+period carried benign labels, leaving target recovery unmeasurable on that
+slice. [Inputs, coverage and reproduction](ZEEK_SCALE_STUDY.md)
+
 The profile is sensor-scoped.  `zeek-score` rejects a requested sensor that
 does not match the profile, preventing an unrelated sensor's baseline from
 being silently reused.

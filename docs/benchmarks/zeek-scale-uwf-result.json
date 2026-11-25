@@ -1,0 +1,35 @@
+{
+  "complete_rows": 41303,
+  "dataset": "UWF-ZeekData24",
+  "distinct_input_uids": 42909,
+  "observed": {
+    "benign": 12391,
+    "first_utc": "2024-11-04T01:06:48.332896+00:00",
+    "last_utc": "2024-11-05T21:59:46.927327+00:00",
+    "rows": 12391,
+    "target": 0
+  },
+  "outbound_rows_for_comparison_prefix": 9,
+  "outbound_target_rows_for_comparison_prefix": 0,
+  "reference": {
+    "benign": 6670,
+    "first_utc": "2024-02-28T04:00:37.805662+00:00",
+    "last_utc": "2024-11-04T01:06:46.642848+00:00",
+    "rows": 28912,
+    "target": 22242
+  },
+  "sources": {
+    "benign": {
+      "complete": 19061,
+      "rows_read": 20000
+    },
+    "credential_access": {
+      "complete": 20000,
+      "rows_read": 20000
+    },
+    "reconnaissance": {
+      "complete": 2242,
+      "rows_read": 2909
+    }
+  }
+}
