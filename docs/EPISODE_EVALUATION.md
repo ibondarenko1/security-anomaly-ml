@@ -57,6 +57,28 @@ By default each sidecar UID must exactly match a unique textual `Flow ID`. For f
 
 All flows are grouped by the frozen Policy B endpoint key and five-minute inactivity gap for the fixed-budget comparison. Methods rank each group by its maximum RF attack score, its maximum per-flow total of forward and backward packets, or the same seeded uniform control. The operational section reproduces actual RF promotion, including the original flow alert filter. Its target-case recall is conditional on RF alert groups. Independent episode recall still uses the full sidecar. Filtering before grouping can change group boundaries. Running on a single evaluation file starts the frozen causal context empty.
 
-## Public labelled captures
+An integration check on the first 4 MiB of the previously evaluated February 20 CSE-CIC-IDS2018 file reproduced 518 alerted flows, 26 alert groups and 15 promoted groups from 8,820 accepted flows. Ten promotions contained only benign-labelled flows. With a ten-case budget across 36 all-flow groups, RF surfaced five target-bearing groups, packet volume zero, and the default seeded queue four. All positive rows were assigned to one DDoS-window proxy for this check. [Source object and sampling protocol](RF_TRANSFER.md)
 
-The [frozen IoT-23 protocol](benchmarks/iot23-periodic-protocol.json) specifies the datasets, warmup, target labels, episode boundaries, thresholds and review budget used for the public comparison.
+## Public IoT-23 results
+
+The rare-periodic rule emitted **22 findings on nine captures. Every member of those findings was labelled benign.** Three C&C episodes occurred during the holdouts. At its shipped threshold, the existing median/MAD profile surfaced all three and sent 104 cases to review. The new rule is opt-in in the source CLI. [Machine-readable results by capture](benchmarks/iot23-periodic-results.json)
+
+| Method at its operating threshold | Cases emitted | Target-bearing cases | Purely benign cases | Other cases | Target episodes recovered |
+|---|---:|---:|---:|---:|---:|
+| Rarity and regularity | 22 | 0 | 22 | 0 | 0 / 3 |
+| Regularity alone | 23 | 0 | 23 | 0 | 0 / 3 |
+| Existing median/MAD profile | 104 | 4 | 97 | 3 | 3 / 3 |
+
+The scored holdouts contained 14,002 of 46,662 connections. Of 245 outbound cases, 163 entered the common ranking pool. The other 82 lacked a complete record for the MAD score. At a budget of up to ten cases per capture, all four queues reviewed 74 cases each, including the same four target-bearing cases covering three episodes. All three captures with a target had at most ten cases in the common pool. Reviewing the whole pool in each of those captures guarantees the same recovery even with random ordering. This experiment cannot establish a ranking advantage.
+
+Hakai and Mirai each contributed an episode already active during the reference period. The two Hakai target cases had regularity 0.41 and 0.58. Mirai's was 0.50. Their destinations also occurred frequently in the reference traffic. The only newly starting episode, in Torii, had one observed connection, too few to establish a cadence. The source labels describe flows. The independent episode count uses a one-hour gap per device and publisher label family. [Dataset and labelling method](https://www.stratosphereips.org/datasets-iot23)
+
+### Reproduce the measurements
+
+From the source checkout with Python 3.13 and the package installed, run the command below. It verifies each published source object's SHA-256, evaluates the nine captures independently, and writes a single JSON report. Use `--prepare` instead of `--evaluate` in a separate directory to inspect the feature streams and labels. [Protocol and thresholds frozen before scoring](https://github.com/ibondarenko1/security-anomaly-ml/blob/0f750749b6165befeeeb8e40511380da4356c1b2/docs/benchmarks/iot23-periodic-protocol.json)
+
+```bash
+python tools/evaluate_iot23_episodes.py --capture all --output-dir artifacts/iot23-periodic --evaluate
+```
+
+Two independent runs produced SHA-256 `578f968e4198582513a468cb641d57adb0ccc0e7384f7ed04a40d3036d7d20a5`. The on-demand GitHub Actions job compares a fresh run with the committed report byte for byte. [IoT-23 reproduction workflow](../.github/workflows/iot23-evaluation.yml)

@@ -37,6 +37,8 @@ The sample flags connection `H2`. Look up that UID in the held-out log and compa
 
 **Cross-network result.** On 32,056 scorable flows from four fixed ranges of CSE-CIC-IDS2018, the unchanged model detected 495 of 8,754 attack-labelled flows (5.65%) and alerted on 14,710 of 23,302 benign flows (63.13%). This workload supports local evaluation and calibration before analyst use. [Sampling protocol and comparison at a fixed alert budget](docs/RF_TRANSFER.md)
 
+**Outbound periodicity result.** On nine IoT-23 captures the opt-in rule emitted 22 findings, all labelled benign, and missed all three C&C episodes in the holdouts. The existing median/MAD profile recovered all three at a workload of 104 cases. [Operating thresholds, review-budget comparison and reproduction](docs/EPISODE_EVALUATION.md#public-iot-23-results)
+
 ## Run the published CICFlowMeter release
 
 The published v0.1.0 Linux/amd64 image includes the verified model. From a source checkout, this command runs the public 12-flow fixture and prints the two promoted incidents.

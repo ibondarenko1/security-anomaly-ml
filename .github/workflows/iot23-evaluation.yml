@@ -1,0 +1,29 @@
+name: Reproduce IoT-23 evaluation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/iot23-evaluation.yml"
+      - "docs/benchmarks/iot23-periodic-*.json"
+      - "tools/evaluate_iot23_episodes.py"
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13.7"
+          cache: pip
+      - run: python -m pip install .
+      - name: Verify the published source logs and reproduce the aggregate
+        run: |
+          python tools/evaluate_iot23_episodes.py --capture all --output-dir "$RUNNER_TEMP/iot23" --evaluate
+          sha256sum "$RUNNER_TEMP/iot23/aggregate.json" docs/benchmarks/iot23-periodic-results.json
+          cmp "$RUNNER_TEMP/iot23/aggregate.json" docs/benchmarks/iot23-periodic-results.json
