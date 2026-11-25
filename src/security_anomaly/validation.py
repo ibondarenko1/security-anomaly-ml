@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import csv
+import io
+import ipaddress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -107,11 +109,26 @@ def validate_flow_records(
         )
 
     for name in ("Src IP", "Dst IP"):
-        invalid = frame[name].isna() | frame[name].astype(str).str.strip().eq("")
-        if invalid.any():
-            bad_rows = frame.index[invalid].tolist()[:20]
-            raise InputContractError(f"{name} contains missing/empty values at rows {bad_rows}")
-        frame[name] = frame[name].astype(str)
+        canonical: list[str] = []
+        invalid_rows: list[int] = []
+        for row_number, value in frame[name].items():
+            if pd.isna(value):
+                invalid_rows.append(int(row_number))
+                continue
+            text = str(value).strip()
+            if not text:
+                invalid_rows.append(int(row_number))
+                continue
+            try:
+                canonical.append(str(ipaddress.ip_address(text)))
+            except ValueError:
+                invalid_rows.append(int(row_number))
+        if invalid_rows:
+            raise InputContractError(
+                f"{name} must contain valid IPv4/IPv6 addresses; "
+                f"invalid rows: {invalid_rows[:20]}"
+            )
+        frame[name] = canonical
 
     numeric_columns = list(
         dict.fromkeys(
@@ -168,18 +185,63 @@ def validate_csv_header(path: str | Path) -> list[str]:
     if not source.is_file():
         raise InputContractError(f"Input CSV not found: {source}")
     try:
-        with source.open("r", encoding="utf-8-sig", newline="") as handle:
-            header = next(csv.reader(handle, strict=True), None)
+        raw = source.read_bytes()
     except (OSError, UnicodeError, csv.Error) as error:
         raise InputContractError(f"Cannot read CSV header: {error}") from error
+    return validate_csv_header_bytes(raw, source=source)
+
+
+def validate_csv_header_bytes(
+    raw: bytes,
+    *,
+    source: str | Path = "<bytes>",
+) -> list[str]:
+    """Read a CSV header from the exact bytes that will be parsed by pandas."""
+
+    try:
+        with io.TextIOWrapper(
+            io.BytesIO(raw), encoding="utf-8-sig", newline=""
+        ) as handle:
+            header = next(csv.reader(handle, strict=True), None)
+    except (OSError, UnicodeError, csv.Error) as error:
+        raise InputContractError(f"Cannot read CSV header {source}: {error}") from error
     if header is None or not header or not any(value.strip() for value in header):
-        raise InputContractError("Input CSV is empty or has no header")
+        raise InputContractError(f"Input CSV {source} is empty or has no header")
     if any(value == "" for value in header):
-        raise InputContractError("Input CSV header contains an empty column name")
+        raise InputContractError(
+            f"Input CSV header {source} contains an empty column name"
+        )
     duplicates = sorted({name for name in header if header.count(name) > 1})
     if duplicates:
-        raise InputContractError(f"Input CSV header contains duplicate columns: {duplicates}")
+        raise InputContractError(
+            f"Input CSV header {source} contains duplicate columns: {duplicates}"
+        )
     return header
+
+
+def read_and_validate_flow_csv_bytes(
+    raw: bytes,
+    *,
+    source: str | Path = "<bytes>",
+    contract: FeatureContract | None = None,
+) -> ValidatedFlowBatch:
+    """Validate a CSV from one immutable byte snapshot.
+
+    Replay uses this entry point after hashing a rotation so the digest and parsed
+    content cannot come from different reads of a file being written concurrently.
+    """
+
+    raw_header = validate_csv_header_bytes(raw, source=source)
+    try:
+        frame = pd.read_csv(io.BytesIO(raw), encoding="utf-8-sig")
+    except (OSError, UnicodeError, pd.errors.ParserError, pd.errors.EmptyDataError) as error:
+        raise InputContractError(f"Malformed or unreadable CSV {source}: {error}") from error
+    if frame.columns.tolist() != raw_header:
+        raise InputContractError(
+            f"CSV columns changed during parsing for {source}; "
+            "input header is not losslessly representable"
+        )
+    return validate_flow_records(frame, contract=contract)
 
 
 def read_and_validate_flow_csv(
@@ -190,13 +252,8 @@ def read_and_validate_flow_csv(
     """Load a CSV only after lossless raw-header validation."""
 
     source = Path(path)
-    raw_header = validate_csv_header(source)
     try:
-        frame = pd.read_csv(source, encoding="utf-8-sig")
-    except (OSError, UnicodeError, pd.errors.ParserError, pd.errors.EmptyDataError) as error:
-        raise InputContractError(f"Malformed or unreadable CSV: {error}") from error
-    if frame.columns.tolist() != raw_header:
-        raise InputContractError(
-            "CSV columns changed during parsing; input header is not losslessly representable"
-        )
-    return validate_flow_records(frame, contract=contract)
+        raw = source.read_bytes()
+    except (OSError, UnicodeError) as error:
+        raise InputContractError(f"Cannot read CSV: {error}") from error
+    return read_and_validate_flow_csv_bytes(raw, source=source, contract=contract)

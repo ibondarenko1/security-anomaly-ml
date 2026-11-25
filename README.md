@@ -2,7 +2,7 @@
 
 # Security Anomaly ML
 
-Open-source ML network-flow detector that turns CICFlowMeter-compatible traffic into deterministic analyst-facing security incidents.
+Local network-flow triage for SOC analysts. Replay CICFlowMeter rotations with a frozen Random Forest, or fit a sensor-specific baseline to Zeek connection logs. Both paths can produce OCSF Detection Findings with the evidence behind each alert.
 
 [![CI](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ibondarenko1/security-anomaly-ml/actions/workflows/ci.yml)
 [![Release v0.1.0](https://img.shields.io/badge/release-v0.1.0-blue.svg)](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0)
@@ -10,25 +10,42 @@ Open-source ML network-flow detector that turns CICFlowMeter-compatible traffic 
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](./LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22036212.svg)](https://doi.org/10.5281/zenodo.22036212)
 
-**v0.1.0 — usable research/evaluation release. Not production-ready.**
-
-Security Anomaly ML takes unlabeled CICFlowMeter flow records, builds causal temporal context, scores them with a frozen Random Forest detector, groups repeated alerts into incidents, and emits deterministic `incident-v1` JSONL.
-
-## Quick start
-
-Docker is the recommended path. The published image includes the exact verified frozen model, so no separate model download is needed.
+**Try the current source checkout** with Python 3.13. The Zeek example works with the included records and needs no model download.
 
 ```bash
-docker pull ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0
-
-docker run --rm --network none \
-  -v "$PWD:/data" \
-  ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 \
-  analyze /data/flows.csv \
-  --output /data/incidents.jsonl
+git clone https://github.com/ibondarenko1/security-anomaly-ml.git
+cd security-anomaly-ml
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install .
+security-anomaly zeek-fit tests/fixtures/zeek/fit.jsonl --sensor edge --output profile.json
+security-anomaly zeek-score tests/fixtures/zeek/heldout.jsonl --sensor edge --profile profile.json --output findings.jsonl
+security-anomaly sentinel-batch findings.jsonl --output request.json
 ```
 
-The mounted directory must be writable by the container's non-root UID/GID `10001`. Normal inference works with networking disabled. Validation, Windows PowerShell, and source-build examples are in [`docs/DOCKER.md`](docs/DOCKER.md).
+The sample flags connection `H2`. Look up that UID in the held-out log and compare the observed measurements with the fitted medians in `evidences[0].data`. The last command creates a request body on disk. On Windows, activate the environment with `.venv\Scripts\Activate.ps1`.
+
+| For this task | Start here |
+|---|---|
+| Analyze rotated CSVs, including late arrivals and restarts | [Replay guide](docs/REPLAY.md) |
+| Measure unusual Zeek connections against your own reference period | [Zeek profile and scoring](docs/ZEEK.md) |
+| Inspect cross-network recall and analyst workload | [Frozen-model transfer test](docs/RF_TRANSFER.md) and [independent workload benchmark](docs/EXTERNAL_EVALUATION.md) |
+| Query findings in Microsoft Sentinel | [OCSF fields, request format, and KQL](examples/sentinel/README.md) |
+
+**Cross-network result.** On 32,056 scorable flows from four fixed ranges of CSE-CIC-IDS2018, the unchanged model detected 495 of 8,754 attack-labelled flows (5.65%) and alerted on 14,710 of 23,302 benign flows (63.13%). This workload supports local evaluation and calibration before analyst use. [Sampling protocol and comparison at a fixed alert budget](docs/RF_TRANSFER.md)
+
+## Run the published CICFlowMeter release
+
+The published v0.1.0 Linux/amd64 image includes the verified model. From a source checkout, this command runs the public 12-flow fixture and prints the two promoted incidents.
+
+```bash
+docker run --rm --network none \
+  -v "$PWD/tests/fixtures/product-v01:/fixtures:ro" \
+  --entrypoint sh ghcr.io/ibondarenko1/security-anomaly-ml:0.1.0 \
+  -c 'security-anomaly analyze /fixtures/flows.csv --output /tmp/incidents.jsonl && cat /tmp/incidents.jsonl'
+```
+
+The current checkout identifies itself as `0.2.0.dev0`. The published v0.1.0 wheel and image provide the original batch CLI. The frozen model and `incident-v1` schema retain their original versions. [Docker and PowerShell examples](docs/DOCKER.md)
 
 ## Example incident
 
@@ -83,11 +100,11 @@ The v0.1 pipeline was frozen before evaluation on the February 18 temporal holdo
 
 **Verdict: acceptable but operationally noisy.** This is one future capture day with overlapping hosts/environment from the same dataset and network family. It is not evidence of generalization across arbitrary networks, and the remaining workload is too high for normal Tier-1 production use.
 
-The holdout was evaluated once after all model, feature, threshold, aggregation, and promotion decisions were frozen.
+The reference incidents group attack-labelled flows by the Policy B key and inactivity gap. A group counts as detected when any member reaches the specified stage. Promoted precision counts a mixed incident containing an attack flow as a true positive. The FP-object reduction compares false-positive flows with purely benign promoted incidents, which are different units.
 
 ## How it works
 
-One input row represents one network flow. The product validates the label-free CSV, builds tie-safe causal context, scores each flow, groups flow alerts into deterministic five-minute incidents, and emits only promoted incidents.
+One input row represents one network flow. The product validates the CSV, builds causal context, scores each flow, and groups alerts by source IP, destination IP and destination port. A gap of more than 300 seconds starts a new incident.
 
 ```mermaid
 flowchart LR
@@ -141,12 +158,12 @@ No mutable `latest` tag is published for v0.1.0.
 
 ## Python CLI
 
-Download the wheel from the [v0.1.0 GitHub Release](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0), then install it into Python 3.13:
+Install the published batch CLI from PyPI with Python 3.13. The same wheel is available on the [v0.1.0 GitHub Release](https://github.com/ibondarenko1/security-anomaly-ml/releases/tag/v0.1.0).
 
 ```bash
 python3.13 -m venv .venv
 source .venv/bin/activate
-python -m pip install security_anomaly_ml-0.1.0-py3-none-any.whl
+python -m pip install security-anomaly-ml==0.1.0
 security-anomaly version
 ```
 
@@ -208,11 +225,11 @@ Do not attach real packet captures, raw flow exports, internal IP inventories, o
 ## Limitations
 
 - Research/evaluation grade; not production-ready and not a SOC replacement.
-- Batch CSV processing only; no streaming, API, dashboard, or persistent state service.
-- CICFlowMeter-compatible input only.
+- File-based processing. Replay retains a finite capture in SQLite and recomputes its context when rotations are added. Size the capture to fit memory.
+- CICFlowMeter CSV and Zeek JSON connection logs have separate observation and scoring contracts.
 - Frozen Python 3.13 serialization/runtime compatibility.
-- Input timestamps have source-defined, timezone-naive semantics and one-second granularity.
-- Validation covers one future day from an overlapping network/dataset family, not arbitrary networks.
+- Legacy CSV timestamps have one-second resolution. Replay requires a source timezone. Zeek timestamps are Unix epoch seconds.
+- The original holdout is one later day in the training network family. The separate external evaluations report the scope and class coverage of each capture.
 - Flow-level weaknesses remain concentrated in Fuzzers and Analysis traffic.
 - The score is not calibrated as a real-world attack probability.
 - Alert workload remains too high for normal Tier-1 production operations.

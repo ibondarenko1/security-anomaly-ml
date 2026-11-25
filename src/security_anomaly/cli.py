@@ -1,4 +1,4 @@
-"""Command-line interface for label-free Security Anomaly ML v0.1 analysis."""
+"""Command-line entry points for local network-flow triage."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import traceback
 from pathlib import Path
 from typing import Sequence
 
+from . import __version__, ocsf, sentinel, zeek
 from .contracts import ContractError
 from .detector import SecurityAnomalyDetector
 from .model_bundle import ArtifactIntegrityError, ModelCompatibilityError
@@ -20,6 +21,7 @@ from .package_resources import (
     materialized_resource,
     resource_json,
 )
+from .paths import ensure_distinct
 from .serialization import (
     INCIDENT_SCHEMA_VERSION,
     IncidentSerializationError,
@@ -100,7 +102,8 @@ def _version_payload() -> dict[str, object]:
     manifest = resource_json(MODEL_MANIFEST_RESOURCE)
     contract = resource_json(FEATURE_CONTRACT_RESOURCE)
     return {
-        "product_version": manifest["product_version"],
+        "product_version": __version__,
+        "frozen_detector_product_version": manifest["product_version"],
         "feature_contract": contract["feature_contract"],
         "feature_builder_version": contract["feature_builder_version"],
         "incident_contract": INCIDENT_SCHEMA_VERSION,
@@ -136,8 +139,7 @@ def _command_analyze(args: argparse.Namespace) -> int:
     batch = read_and_validate_flow_csv(args.input)
     model_path = resolve_model_path(args.model)
     output = args.output.expanduser().resolve()
-    if Path(args.input).expanduser().resolve() == output:
-        raise OutputWriteError("Output path must differ from input CSV path")
+    ensure_distinct(output, args.input, model_path)
     detector = _load_detector(model_path)
     result = detector.analyze_batch(batch.frame)
     public_incidents = promoted_incidents_to_v1(result)
@@ -185,11 +187,13 @@ def _command_model_info(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from . import replay
+
     parser = argparse.ArgumentParser(
         prog="security-anomaly",
         description=(
-            "Validate and analyze unlabeled CICFlowMeter-compatible flow CSV files "
-            "with the frozen context-rf-v2 detector."
+            "Analyze CICFlowMeter flows and Zeek connection logs locally, "
+            "replay captures, and export findings for SOC review."
         ),
         epilog=(
             "Example: security-anomaly analyze flows.csv --model context-rf-v2.joblib "
@@ -227,6 +231,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     model_info.add_argument("--model", type=Path, help="frozen context-rf-v2 joblib path")
     model_info.set_defaults(handler=_command_model_info)
+    replay.register_parser(subparsers)
+    zeek.register_parser(subparsers)
+    ocsf.register_parser(subparsers)
+    sentinel.register_parser(subparsers)
     return parser
 
 

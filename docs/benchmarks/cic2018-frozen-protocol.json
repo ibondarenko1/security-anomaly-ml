@@ -1,0 +1,16 @@
+{
+  "protocol": "cic2018-feb20-transfer-v1",
+  "source": "https://cse-cic-ids2018.s3.amazonaws.com/Processed%20Traffic%20Data%20for%20ML%20Algorithms/Thuesday-20-02-2018_TrafficForML_CICFlowMeter.csv",
+  "object_bytes": 4054925350,
+  "object_etag": "49075d3ee07bcd47e1aae3f059953799-242",
+  "slice_start_bytes": [0, 1013731337, 2027462675, 3041194012],
+  "bytes_per_slice": 4194304,
+  "selection": "Keep complete lines wholly inside each fixed byte range, excluding the header. Reset model context at each slice. Each slice is evaluated separately.",
+  "excluded_rows": "Count repeated headers and rows missing a timestamp, label or finite required numeric measurements. Never substitute values. Other schema violations invalidate the run.",
+  "model_sha256": "4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72",
+  "flow_threshold": 0.10,
+  "promotion_threshold": 0.25,
+  "budget_fraction": 0.01,
+  "comparator": "Sum of forward and backward packets. Compare both rankings on the same top floor(1% of scorable flows) per slice; break ties by source order.",
+  "labels": "Benign is negative. All other publisher attack labels are positive; report each separately."
+}

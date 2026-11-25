@@ -1,11 +1,11 @@
-"""Production-oriented inference primitives for Security Anomaly ML v0.1."""
+"""Local network-flow triage and inference primitives."""
 
 from __future__ import annotations
 
 from importlib import import_module
 from typing import Any
 
-__version__ = "0.1.0"
+__version__ = "0.2.0.dev0"
 
 __all__ = [
     "ArtifactIntegrityError",

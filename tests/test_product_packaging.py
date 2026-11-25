@@ -19,7 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_pyproject_exposes_only_product_src_package_and_console_script() -> None:
     document = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert document["project"]["version"] == "0.1.0"
+    from src.security_anomaly import __version__
+
+    assert document["project"]["version"] == __version__
     assert document["project"]["requires-python"] == ">=3.13,<3.14"
     assert document["project"]["scripts"]["security-anomaly"] == (
         "security_anomaly.cli:main"

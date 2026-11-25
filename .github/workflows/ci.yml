@@ -10,6 +10,7 @@ permissions:
   contents: read
 
 env:
+  # setup-python publishes this exact Linux interpreter for Ubuntu 24.04.
   PYTHON_VERSION: "3.13.7"
   MODEL_RELEASE_TAG: model-context-rf-v2
   MODEL_SHA256: 4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72
@@ -17,7 +18,7 @@ env:
 jobs:
   dependency-audit:
     name: dependency-audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,7 +33,7 @@ jobs:
 
   unit-and-contracts:
     name: unit-and-contracts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,7 +53,7 @@ jobs:
 
   clean-install-cli:
     name: clean-install-cli
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,10 +93,24 @@ jobs:
               assert resources.joinpath(name).is_file(), name
           print({"product_version": security_anomaly.__version__, "resources": str(resources)})
           PY
+      - name: Run installed Zeek and Sentinel example outside the source tree
+        working-directory: ${{ runner.temp }}
+        run: |
+          cli="$RUNNER_TEMP/security-anomaly-clean/bin/security-anomaly"
+          fixtures="$GITHUB_WORKSPACE/tests/fixtures/zeek"
+          "$cli" zeek-fit "$fixtures/fit.jsonl" --sensor edge --output profile.json
+          "$cli" zeek-score "$fixtures/heldout.jsonl" --sensor edge --profile profile.json --output findings.jsonl
+          "$cli" sentinel-batch findings.jsonl --output request.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows = json.loads(Path("request.json").read_bytes())
+          assert [r["Finding"]["evidences"][0]["uid"] for r in rows] == ["H2"]
+          PY
 
   frozen-model-e2e:
     name: frozen-model-e2e
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -123,7 +138,7 @@ jobs:
             --model "$RUNNER_TEMP/frozen-model/context-rf-v2.joblib"
           SECURITY_ANOMALY_E2E_MODEL="$RUNNER_TEMP/frozen-model/context-rf-v2.joblib" \
             "$RUNNER_TEMP/security-anomaly-e2e/bin/python" -m pytest -q \
-            tests/test_product_e2e.py
+            tests/test_product_e2e.py tests/test_product_replay.py
       - name: Verify repeated installed-CLI golden output
         run: |
           "$RUNNER_TEMP/security-anomaly-e2e/bin/security-anomaly" analyze \
@@ -140,7 +155,7 @@ jobs:
 
   docker-smoke:
     name: docker-smoke
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
