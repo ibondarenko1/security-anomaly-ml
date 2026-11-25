@@ -1,6 +1,8 @@
-# Security Anomaly ML v0.1 CLI
+# Security Anomaly ML CLI
 
-The CLI accepts unlabeled CICFlowMeter-compatible CSV flows, runs the frozen label-free detector, and writes promoted `incident-v1` JSON Lines. It does not train, tune, download, or modify a model.
+The source checkout includes `replay` for finite CICFlowMeter rotations, `zeek-fit` and `zeek-score` for sensor profiles, and `export-ocsf` and `sentinel-batch` for local interchange. Their inputs and outputs are documented in the [replay guide](REPLAY.md), [Zeek guide](ZEEK.md) and [Sentinel example](../examples/sentinel/README.md).
+
+The original batch commands below are also available in v0.1.0. They accept unlabeled CICFlowMeter-compatible CSV flows, run the frozen detector, and write promoted `incident-v1` JSON Lines.
 
 ## Install
 

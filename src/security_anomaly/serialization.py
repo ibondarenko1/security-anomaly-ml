@@ -7,9 +7,10 @@ import json
 import math
 import os
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Iterator, Mapping, TextIO
 
 from .results import BatchAnalysisResult, IncidentDetection
 
@@ -138,11 +139,9 @@ def jsonl_text(incidents: Iterable[Mapping[str, Any]]) -> str:
     return "" if not lines else "\n".join(lines) + "\n"
 
 
-def write_incidents_jsonl(
-    path: str | Path,
-    incidents: Iterable[Mapping[str, Any]],
-) -> None:
-    """Atomically write strict UTF-8 JSONL through a sibling temporary file."""
+@contextmanager
+def atomic_text_output(path: str | Path) -> Iterator[TextIO]:
+    """Publish a UTF-8 file only after its writer has finished successfully."""
 
     destination = Path(path)
     temporary: Path | None = None
@@ -154,16 +153,28 @@ def write_incidents_jsonl(
         )
         temporary = Path(temporary_name)
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(jsonl_text(incidents))
+            yield handle
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, destination)
-    except (OSError, TypeError, ValueError) as error:
+    except OSError as error:
+        raise OutputWriteError(f"Cannot atomically write {destination}: {error}") from error
+    finally:
         if temporary is not None:
             try:
                 temporary.unlink(missing_ok=True)
             except OSError:
                 pass
-        if isinstance(error, IncidentSerializationError):
-            raise
-        raise OutputWriteError(f"Cannot atomically write {destination}: {error}") from error
+
+
+def write_incidents_jsonl(
+    path: str | Path,
+    incidents: Iterable[Mapping[str, Any]],
+) -> None:
+    """Write strict JSONL without buffering all findings in a second copy."""
+    with atomic_text_output(path) as handle:
+        for incident in incidents:
+            try:
+                handle.write(jsonl_text((incident,)))
+            except (TypeError, ValueError) as error:
+                raise OutputWriteError(f"Cannot encode JSONL record: {error}") from error

@@ -69,7 +69,8 @@ def test_help_and_version_work_without_model(capsys: pytest.CaptureFixture[str])
     assert cli.main(["version"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload == {
-        "product_version": "0.1.0",
+        "product_version": cli.__version__,
+        "frozen_detector_product_version": "0.1.0",
         "feature_contract": "cicflow-v2-128",
         "feature_builder_version": "causal-temporal-v2",
         "incident_contract": "incident-v1",

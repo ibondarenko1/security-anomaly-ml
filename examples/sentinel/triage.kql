@@ -1,0 +1,13 @@
+SecurityAnomalyFindings_CL
+| where toint(Finding.class_uid) == 2004
+| extend FindingId = tostring(Finding.finding_info.uid),
+         SnapshotId = tostring(Finding.metadata.uid),
+         Sensor = tostring(Finding.metadata.log_provider),
+         ObservedEnd = unixtime_milliseconds_todatetime(tolong(Finding.end_time)),
+         Evidence = Finding.evidences[0]
+| summarize arg_max(TimeGenerated, *) by Sensor, FindingId, SnapshotId
+| project ObservedEnd, Sensor, FindingId, SnapshotId, Detector = tostring(Finding.finding_info.analytic.name),
+          SourceIP = tostring(Evidence.src_endpoint.ip), DestinationIP = tostring(Evidence.dst_endpoint.ip),
+          DestinationPort = toint(Evidence.dst_endpoint.port), ObservationId = tostring(Evidence.uid),
+          Measurements = Evidence.data
+| order by ObservedEnd desc, SnapshotId asc

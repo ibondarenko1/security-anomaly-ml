@@ -1,0 +1,92 @@
+{
+  "model_sha256": "4730a06506d8c5f2af93679c492e1544b3c2b11acd16fe74120d64d4dbfc5c72",
+  "protocol": "cic2018-feb20-transfer-v1",
+  "slices": [
+    {
+      "budget_per_ranker": 88,
+      "classes": {
+        "Benign": {
+          "frozen_alerts": 23,
+          "rows": 66,
+          "top_packet_count": 22,
+          "top_rf": 2
+        },
+        "DDoS attacks-LOIC-HTTP": {
+          "frozen_alerts": 495,
+          "rows": 8754,
+          "top_packet_count": 66,
+          "top_rf": 86
+        }
+      },
+      "flow_alerts": 518,
+      "promoted_incidents": 15,
+      "pure_benign_promoted": 10,
+      "range_sha256_including_guard": "166c7cebb1d5a8960c3670aaceef385b5120b6bdbfb3306f93745bc31e0e1ee1",
+      "repeated_headers": 0,
+      "scored": 8820,
+      "source_rows": 8820,
+      "start": 0,
+      "unscorable": 0
+    },
+    {
+      "budget_per_ranker": 78,
+      "classes": {
+        "Benign": {
+          "frozen_alerts": 4928,
+          "rows": 7831,
+          "top_packet_count": 78,
+          "top_rf": 78
+        }
+      },
+      "flow_alerts": 4928,
+      "promoted_incidents": 943,
+      "pure_benign_promoted": 943,
+      "range_sha256_including_guard": "4ff29f37dcf9aded41b1cd50a72623235becd45c134392ceb4098038e9119f01",
+      "repeated_headers": 0,
+      "scored": 7831,
+      "source_rows": 7944,
+      "start": 1013731337,
+      "unscorable": 113
+    },
+    {
+      "budget_per_ranker": 77,
+      "classes": {
+        "Benign": {
+          "frozen_alerts": 4688,
+          "rows": 7779,
+          "top_packet_count": 77,
+          "top_rf": 77
+        }
+      },
+      "flow_alerts": 4688,
+      "promoted_incidents": 1042,
+      "pure_benign_promoted": 1042,
+      "range_sha256_including_guard": "08cfc745464d891ebeab4d686adfced2b93d71c15ce8784f42bc9ee8a482b2b2",
+      "repeated_headers": 0,
+      "scored": 7779,
+      "source_rows": 7914,
+      "start": 2027462675,
+      "unscorable": 135
+    },
+    {
+      "budget_per_ranker": 76,
+      "classes": {
+        "Benign": {
+          "frozen_alerts": 5071,
+          "rows": 7626,
+          "top_packet_count": 76,
+          "top_rf": 76
+        }
+      },
+      "flow_alerts": 5071,
+      "promoted_incidents": 963,
+      "pure_benign_promoted": 963,
+      "range_sha256_including_guard": "549dae7037994a48f86e22d07ab25b397cf69a6395bc23fff21d710ea6746502",
+      "repeated_headers": 0,
+      "scored": 7626,
+      "source_rows": 7725,
+      "start": 3041194012,
+      "unscorable": 99
+    }
+  ]
+}

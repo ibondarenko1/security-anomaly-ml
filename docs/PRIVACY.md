@@ -24,7 +24,13 @@ Normal `validate`, `analyze`, `version`, and `model-info` execution is local:
 
 The repository helper `tools/fetch_frozen_model.py` is an explicit model-acquisition command and does use the network to retrieve the named public GitHub Release asset. It is not called automatically by the installed CLI or Docker inference runtime.
 
-## Memory and temporal state
+## Capture retention in the source checkout
+
+`replay` preserves accepted rotations in the requested SQLite checkpoint to rebuild temporal features after a restart. Treat the database, its SQLite sidecars, backups and finding snapshots as sensitive flow data. Keep them on storage approved for the original capture and include them in the same retention policy.
+
+`zeek-fit` writes the fitted reference profile. Zeek findings include sensor and observation identifiers, addresses, ports and measured deviations. `export-ocsf` and `sentinel-batch` write local files. Sending a request body to Azure is a separate operator action.
+
+## Memory and temporal state in batch analyze
 
 The CSV is loaded for batch processing. Temporal feature construction uses an in-memory DuckDB connection and in-process data structures. State begins empty for each batch, same-timestamp peers are processed together, and state is not carried into a later CLI run.
 
